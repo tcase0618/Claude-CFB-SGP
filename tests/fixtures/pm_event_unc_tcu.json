@@ -1,0 +1,1624 @@
+{
+ "id": "78466",
+ "slug": "cfb-ncar-tcu-2026-08-29",
+ "title": "Tar Heels vs. Horned Frogs",
+ "seriesSlug": "cfb-2026",
+ "startTime": "2026-08-29T16:00:00Z",
+ "startDate": "2026-08-29T16:00:00Z",
+ "score": "15-10",
+ "period": "VFT",
+ "elapsed": "",
+ "live": false,
+ "ended": true,
+ "closed": true,
+ "sportradarGameId": "c8a31025-2cda-4da5-8c7e-49e81a7e2fec",
+ "teams": [
+  {
+   "id": 1082,
+   "name": "North Carolina",
+   "alias": "Tar Heels",
+   "abbreviation": "ncar",
+   "displayAbbreviation": "UNC",
+   "conference": "Atlantic Coast",
+   "ranking": "0",
+   "record": "5-4",
+   "colorPrimary": "#56A0D3",
+   "providerIds": [
+    {
+     "provider": "PROVIDER_SPORTSDATAIO",
+     "providerId": "21"
+    },
+    {
+     "provider": "PROVIDER_SPORTRADAR",
+     "providerId": "79368b86-8bb0-4c66-8189-b836d039c207"
+    }
+   ]
+  },
+  {
+   "id": 1145,
+   "name": "TCU",
+   "alias": "Horned Frogs",
+   "abbreviation": "tcu",
+   "displayAbbreviation": "TCU",
+   "conference": "Big 12",
+   "ranking": "0",
+   "record": "4-5",
+   "colorPrimary": "#4D1979",
+   "providerIds": [
+    {
+     "provider": "PROVIDER_SPORTSDATAIO",
+     "providerId": "114"
+    },
+    {
+     "provider": "PROVIDER_SPORTRADAR",
+     "providerId": "a09e634d-39a8-4aa8-81a4-7337580a31f4"
+    }
+   ]
+  }
+ ],
+ "eventState": {
+  "periodScores": []
+ },
+ "markets": [
+  {
+   "id": "408934",
+   "slug": "aec-cfb-ncar-tcu-2026-08-29",
+   "sportsMarketType": "football_team_full_game_winner",
+   "marketType": "moneyline",
+   "line": null,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"Horned Frogs\",\"Tar Heels\"]",
+   "outcomePrices": "[\"1\",\"0\"]",
+   "title": "North Carolina vs TCU",
+   "marketSides": [
+    {
+     "description": "Tar Heels",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "Horned Frogs",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520427",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-neg-0pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": -0.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"-0.50\",\"+0.50\"]",
+   "outcomePrices": "[\"1\",\"0\"]",
+   "title": "North Carolina wins by over 0.5 points",
+   "marketSides": [
+    {
+     "description": "-0.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "+0.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520418",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-neg-10pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": -10.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"+10.50\",\"-10.50\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "North Carolina wins by over 10.5 points",
+   "marketSides": [
+    {
+     "description": "-10.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "+10.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520417",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-neg-13pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": -13.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"+13.50\",\"-13.50\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "North Carolina wins by over 13.5 points",
+   "marketSides": [
+    {
+     "description": "-13.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "+13.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520416",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-neg-14pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": -14.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"-14.50\",\"+14.50\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "North Carolina wins by over 14.5 points",
+   "marketSides": [
+    {
+     "description": "-14.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "+14.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520415",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-neg-16pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": -16.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"+16.50\",\"-16.50\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "North Carolina wins by over 16.5 points",
+   "marketSides": [
+    {
+     "description": "-16.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "+16.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520414",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-neg-17pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": -17.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"+17.50\",\"-17.50\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "North Carolina wins by over 17.5 points",
+   "marketSides": [
+    {
+     "description": "-17.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "+17.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520426",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-neg-1pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": -1.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"+1.50\",\"-1.50\"]",
+   "outcomePrices": "[\"1\",\"0\"]",
+   "title": "North Carolina wins by over 1.5 points",
+   "marketSides": [
+    {
+     "description": "-1.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "+1.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520413",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-neg-20pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": -20.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"-20.50\",\"+20.50\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "North Carolina wins by over 20.5 points",
+   "marketSides": [
+    {
+     "description": "-20.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "+20.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520412",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-neg-21pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": -21.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"+21.50\",\"-21.50\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "North Carolina wins by over 21.5 points",
+   "marketSides": [
+    {
+     "description": "-21.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "+21.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520411",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-neg-24pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": -24.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"+24.50\",\"-24.50\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "North Carolina wins by over 24.5 points",
+   "marketSides": [
+    {
+     "description": "-24.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "+24.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520410",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-neg-27pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": -27.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"+27.50\",\"-27.50\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "North Carolina wins by over 27.5 points",
+   "marketSides": [
+    {
+     "description": "-27.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "+27.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520425",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-neg-2pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": -2.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"+2.50\",\"-2.50\"]",
+   "outcomePrices": "[\"1\",\"0\"]",
+   "title": "North Carolina wins by over 2.5 points",
+   "marketSides": [
+    {
+     "description": "-2.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "+2.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520409",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-neg-31pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": -31.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"-31.50\",\"+31.50\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "North Carolina wins by over 31.5 points",
+   "marketSides": [
+    {
+     "description": "-31.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "+31.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520408",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-neg-34pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": -34.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"-34.50\",\"+34.50\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "North Carolina wins by over 34.5 points",
+   "marketSides": [
+    {
+     "description": "-34.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "+34.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520424",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-neg-3pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": -3.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"-3.50\",\"+3.50\"]",
+   "outcomePrices": "[\"1\",\"0\"]",
+   "title": "North Carolina wins by over 3.5 points",
+   "marketSides": [
+    {
+     "description": "-3.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "+3.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520423",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-neg-4pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": -4.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"-4.50\",\"+4.50\"]",
+   "outcomePrices": "[\"1\",\"0\"]",
+   "title": "North Carolina wins by over 4.5 points",
+   "marketSides": [
+    {
+     "description": "-4.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "+4.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520422",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-neg-5pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": -5.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"+5.50\",\"-5.50\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "North Carolina wins by over 5.5 points",
+   "marketSides": [
+    {
+     "description": "-5.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "+5.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520421",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-neg-6pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": -6.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"-6.50\",\"+6.50\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "North Carolina wins by over 6.5 points",
+   "marketSides": [
+    {
+     "description": "-6.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "+6.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520420",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-neg-7pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": -7.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"+7.50\",\"-7.50\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "North Carolina wins by over 7.5 points",
+   "marketSides": [
+    {
+     "description": "-7.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "+7.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520419",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-neg-8pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": -8.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"+8.50\",\"-8.50\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "North Carolina wins by over 8.5 points",
+   "marketSides": [
+    {
+     "description": "-8.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "+8.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520428",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-pos-0pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": 0.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"-0.50\",\"+0.50\"]",
+   "outcomePrices": "[\"1\",\"0\"]",
+   "title": "TCU wins by over 0.5 points",
+   "marketSides": [
+    {
+     "description": "+0.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "-0.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520436",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-pos-10pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": 10.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"-10.50\",\"+10.50\"]",
+   "outcomePrices": "[\"1\",\"0\"]",
+   "title": "TCU wins by over 10.5 points",
+   "marketSides": [
+    {
+     "description": "+10.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "-10.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520437",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-pos-13pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": 13.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"-13.50\",\"+13.50\"]",
+   "outcomePrices": "[\"1\",\"0\"]",
+   "title": "TCU wins by over 13.5 points",
+   "marketSides": [
+    {
+     "description": "+13.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "-13.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520438",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-pos-14pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": 14.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"+14.50\",\"-14.50\"]",
+   "outcomePrices": "[\"1\",\"0\"]",
+   "title": "TCU wins by over 14.5 points",
+   "marketSides": [
+    {
+     "description": "+14.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "-14.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520439",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-pos-16pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": 16.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"+16.50\",\"-16.50\"]",
+   "outcomePrices": "[\"1\",\"0\"]",
+   "title": "TCU wins by over 16.5 points",
+   "marketSides": [
+    {
+     "description": "+16.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "-16.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520440",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-pos-17pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": 17.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"+17.50\",\"-17.50\"]",
+   "outcomePrices": "[\"1\",\"0\"]",
+   "title": "TCU wins by over 17.5 points",
+   "marketSides": [
+    {
+     "description": "+17.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "-17.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520429",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-pos-1pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": 1.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"+1.50\",\"-1.50\"]",
+   "outcomePrices": "[\"1\",\"0\"]",
+   "title": "TCU wins by over 1.5 points",
+   "marketSides": [
+    {
+     "description": "+1.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "-1.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520441",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-pos-20pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": 20.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"+20.50\",\"-20.50\"]",
+   "outcomePrices": "[\"1\",\"0\"]",
+   "title": "TCU wins by over 20.5 points",
+   "marketSides": [
+    {
+     "description": "+20.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "-20.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520442",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-pos-21pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": 21.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"-21.50\",\"+21.50\"]",
+   "outcomePrices": "[\"1\",\"0\"]",
+   "title": "TCU wins by over 21.5 points",
+   "marketSides": [
+    {
+     "description": "+21.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "-21.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520443",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-pos-24pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": 24.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"+24.50\",\"-24.50\"]",
+   "outcomePrices": "[\"1\",\"0\"]",
+   "title": "TCU wins by over 24.5 points",
+   "marketSides": [
+    {
+     "description": "+24.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "-24.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520444",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-pos-27pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": 27.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"+27.50\",\"-27.50\"]",
+   "outcomePrices": "[\"1\",\"0\"]",
+   "title": "TCU wins by over 27.5 points",
+   "marketSides": [
+    {
+     "description": "+27.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "-27.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520430",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-pos-2pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": 2.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"-2.50\",\"+2.50\"]",
+   "outcomePrices": "[\"1\",\"0\"]",
+   "title": "TCU wins by over 2.5 points",
+   "marketSides": [
+    {
+     "description": "+2.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "-2.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520445",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-pos-31pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": 31.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"+31.50\",\"-31.50\"]",
+   "outcomePrices": "[\"1\",\"0\"]",
+   "title": "TCU wins by over 31.5 points",
+   "marketSides": [
+    {
+     "description": "+31.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "-31.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520446",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-pos-34pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": 34.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"+34.50\",\"-34.50\"]",
+   "outcomePrices": "[\"1\",\"0\"]",
+   "title": "TCU wins by over 34.5 points",
+   "marketSides": [
+    {
+     "description": "+34.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "-34.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520431",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-pos-3pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": 3.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"-3.50\",\"+3.50\"]",
+   "outcomePrices": "[\"1\",\"0\"]",
+   "title": "TCU wins by over 3.5 points",
+   "marketSides": [
+    {
+     "description": "+3.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "-3.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520432",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-pos-4pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": 4.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"-4.50\",\"+4.50\"]",
+   "outcomePrices": "[\"1\",\"0\"]",
+   "title": "TCU wins by over 4.5 points",
+   "marketSides": [
+    {
+     "description": "+4.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "-4.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520433",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-pos-5pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": 5.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"-5.50\",\"+5.50\"]",
+   "outcomePrices": "[\"1\",\"0\"]",
+   "title": "TCU wins by over 5.5 points",
+   "marketSides": [
+    {
+     "description": "+5.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "-5.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520434",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-pos-6pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": 6.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"+6.50\",\"-6.50\"]",
+   "outcomePrices": "[\"1\",\"0\"]",
+   "title": "TCU wins by over 6.5 points",
+   "marketSides": [
+    {
+     "description": "+6.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "-6.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "512503",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-pos-7pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": 7.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"-7.50\",\"+7.50\"]",
+   "outcomePrices": "[\"1\",\"0\"]",
+   "title": "TCU wins by over 7.5 points",
+   "marketSides": [
+    {
+     "description": "+7.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "-7.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520435",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-pos-8pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": 8.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"+8.50\",\"-8.50\"]",
+   "outcomePrices": "[\"1\",\"0\"]",
+   "title": "TCU wins by over 8.5 points",
+   "marketSides": [
+    {
+     "description": "+8.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "-8.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "533012",
+   "slug": "asc-cfb-ncar-tcu-2026-08-29-pos-9pt5",
+   "sportsMarketType": "football_team_full_game_spread",
+   "marketType": "spreads",
+   "line": 9.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"-9.50\",\"+9.50\"]",
+   "outcomePrices": "[\"1\",\"0\"]",
+   "title": "TCU wins by over 9.5 points",
+   "marketSides": [
+    {
+     "description": "+9.50",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "-9.50",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "563087",
+   "slug": "astatc-cfb-ncar-tcu-2026-08-29-recyd-a-225pt5",
+   "sportsMarketType": "football_team_total_pass_yards",
+   "marketType": "props",
+   "line": 225.5,
+   "active": true,
+   "closed": true,
+   "outcomes": "[\"Yes\",\"No\"]",
+   "outcomePrices": "[\"1\",\"0\"]",
+   "title": "North Carolina over 225.5 total passing yards",
+   "marketSides": [
+    {
+     "description": "Yes",
+     "long": true,
+     "teamId": 1082
+    },
+    {
+     "description": "No",
+     "long": false,
+     "teamId": 1082
+    }
+   ]
+  },
+  {
+   "id": "563090",
+   "slug": "astatc-cfb-ncar-tcu-2026-08-29-recyd-h-225pt5",
+   "sportsMarketType": "football_team_total_pass_yards",
+   "marketType": "props",
+   "line": 225.5,
+   "active": true,
+   "closed": true,
+   "outcomes": "[\"Yes\",\"No\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "TCU over 225.5 total passing yards",
+   "marketSides": [
+    {
+     "description": "Yes",
+     "long": true,
+     "teamId": 1145
+    },
+    {
+     "description": "No",
+     "long": false,
+     "teamId": 1145
+    }
+   ]
+  },
+  {
+   "id": "520452",
+   "slug": "tsc-cfb-ncar-tcu-2026-08-29-total-27pt5",
+   "sportsMarketType": "football_team_full_game_total",
+   "marketType": "totals",
+   "line": 27.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"Over\",\"Under\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "Over 27.5 total points",
+   "marketSides": [
+    {
+     "description": "Over",
+     "long": true,
+     "teamId": null
+    },
+    {
+     "description": "Under",
+     "long": false,
+     "teamId": null
+    }
+   ]
+  },
+  {
+   "id": "520453",
+   "slug": "tsc-cfb-ncar-tcu-2026-08-29-total-29pt5",
+   "sportsMarketType": "football_team_full_game_total",
+   "marketType": "totals",
+   "line": 29.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"Under\",\"Over\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "Over 29.5 total points",
+   "marketSides": [
+    {
+     "description": "Over",
+     "long": true,
+     "teamId": null
+    },
+    {
+     "description": "Under",
+     "long": false,
+     "teamId": null
+    }
+   ]
+  },
+  {
+   "id": "520454",
+   "slug": "tsc-cfb-ncar-tcu-2026-08-29-total-31pt5",
+   "sportsMarketType": "football_team_full_game_total",
+   "marketType": "totals",
+   "line": 31.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"Under\",\"Over\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "Over 31.5 total points",
+   "marketSides": [
+    {
+     "description": "Over",
+     "long": true,
+     "teamId": null
+    },
+    {
+     "description": "Under",
+     "long": false,
+     "teamId": null
+    }
+   ]
+  },
+  {
+   "id": "520455",
+   "slug": "tsc-cfb-ncar-tcu-2026-08-29-total-33pt5",
+   "sportsMarketType": "football_team_full_game_total",
+   "marketType": "totals",
+   "line": 33.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"Under\",\"Over\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "Over 33.5 total points",
+   "marketSides": [
+    {
+     "description": "Over",
+     "long": true,
+     "teamId": null
+    },
+    {
+     "description": "Under",
+     "long": false,
+     "teamId": null
+    }
+   ]
+  },
+  {
+   "id": "520456",
+   "slug": "tsc-cfb-ncar-tcu-2026-08-29-total-35pt5",
+   "sportsMarketType": "football_team_full_game_total",
+   "marketType": "totals",
+   "line": 35.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"Under\",\"Over\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "Over 35.5 total points",
+   "marketSides": [
+    {
+     "description": "Over",
+     "long": true,
+     "teamId": null
+    },
+    {
+     "description": "Under",
+     "long": false,
+     "teamId": null
+    }
+   ]
+  },
+  {
+   "id": "520457",
+   "slug": "tsc-cfb-ncar-tcu-2026-08-29-total-37pt5",
+   "sportsMarketType": "football_team_full_game_total",
+   "marketType": "totals",
+   "line": 37.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"Under\",\"Over\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "Over 37.5 total points",
+   "marketSides": [
+    {
+     "description": "Over",
+     "long": true,
+     "teamId": null
+    },
+    {
+     "description": "Under",
+     "long": false,
+     "teamId": null
+    }
+   ]
+  },
+  {
+   "id": "520458",
+   "slug": "tsc-cfb-ncar-tcu-2026-08-29-total-39pt5",
+   "sportsMarketType": "football_team_full_game_total",
+   "marketType": "totals",
+   "line": 39.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"Over\",\"Under\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "Over 39.5 total points",
+   "marketSides": [
+    {
+     "description": "Over",
+     "long": true,
+     "teamId": null
+    },
+    {
+     "description": "Under",
+     "long": false,
+     "teamId": null
+    }
+   ]
+  },
+  {
+   "id": "520459",
+   "slug": "tsc-cfb-ncar-tcu-2026-08-29-total-41pt5",
+   "sportsMarketType": "football_team_full_game_total",
+   "marketType": "totals",
+   "line": 41.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"Over\",\"Under\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "Over 41.5 total points",
+   "marketSides": [
+    {
+     "description": "Over",
+     "long": true,
+     "teamId": null
+    },
+    {
+     "description": "Under",
+     "long": false,
+     "teamId": null
+    }
+   ]
+  },
+  {
+   "id": "520460",
+   "slug": "tsc-cfb-ncar-tcu-2026-08-29-total-43pt5",
+   "sportsMarketType": "football_team_full_game_total",
+   "marketType": "totals",
+   "line": 43.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"Over\",\"Under\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "Over 43.5 total points",
+   "marketSides": [
+    {
+     "description": "Over",
+     "long": true,
+     "teamId": null
+    },
+    {
+     "description": "Under",
+     "long": false,
+     "teamId": null
+    }
+   ]
+  },
+  {
+   "id": "520461",
+   "slug": "tsc-cfb-ncar-tcu-2026-08-29-total-45pt5",
+   "sportsMarketType": "football_team_full_game_total",
+   "marketType": "totals",
+   "line": 45.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"Over\",\"Under\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "Over 45.5 total points",
+   "marketSides": [
+    {
+     "description": "Over",
+     "long": true,
+     "teamId": null
+    },
+    {
+     "description": "Under",
+     "long": false,
+     "teamId": null
+    }
+   ]
+  },
+  {
+   "id": "512608",
+   "slug": "tsc-cfb-ncar-tcu-2026-08-29-total-47pt5",
+   "sportsMarketType": "football_team_full_game_total",
+   "marketType": "totals",
+   "line": 47.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"Over\",\"Under\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "Over 47.5 total points",
+   "marketSides": [
+    {
+     "description": "Over",
+     "long": true,
+     "teamId": null
+    },
+    {
+     "description": "Under",
+     "long": false,
+     "teamId": null
+    }
+   ]
+  },
+  {
+   "id": "520462",
+   "slug": "tsc-cfb-ncar-tcu-2026-08-29-total-49pt5",
+   "sportsMarketType": "football_team_full_game_total",
+   "marketType": "totals",
+   "line": 49.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"Over\",\"Under\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "Over 49.5 total points",
+   "marketSides": [
+    {
+     "description": "Over",
+     "long": true,
+     "teamId": null
+    },
+    {
+     "description": "Under",
+     "long": false,
+     "teamId": null
+    }
+   ]
+  },
+  {
+   "id": "520463",
+   "slug": "tsc-cfb-ncar-tcu-2026-08-29-total-51pt5",
+   "sportsMarketType": "football_team_full_game_total",
+   "marketType": "totals",
+   "line": 51.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"Over\",\"Under\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "Over 51.5 total points",
+   "marketSides": [
+    {
+     "description": "Over",
+     "long": true,
+     "teamId": null
+    },
+    {
+     "description": "Under",
+     "long": false,
+     "teamId": null
+    }
+   ]
+  },
+  {
+   "id": "520464",
+   "slug": "tsc-cfb-ncar-tcu-2026-08-29-total-53pt5",
+   "sportsMarketType": "football_team_full_game_total",
+   "marketType": "totals",
+   "line": 53.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"Under\",\"Over\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "Over 53.5 total points",
+   "marketSides": [
+    {
+     "description": "Over",
+     "long": true,
+     "teamId": null
+    },
+    {
+     "description": "Under",
+     "long": false,
+     "teamId": null
+    }
+   ]
+  },
+  {
+   "id": "520465",
+   "slug": "tsc-cfb-ncar-tcu-2026-08-29-total-55pt5",
+   "sportsMarketType": "football_team_full_game_total",
+   "marketType": "totals",
+   "line": 55.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"Under\",\"Over\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "Over 55.5 total points",
+   "marketSides": [
+    {
+     "description": "Over",
+     "long": true,
+     "teamId": null
+    },
+    {
+     "description": "Under",
+     "long": false,
+     "teamId": null
+    }
+   ]
+  },
+  {
+   "id": "520466",
+   "slug": "tsc-cfb-ncar-tcu-2026-08-29-total-57pt5",
+   "sportsMarketType": "football_team_full_game_total",
+   "marketType": "totals",
+   "line": 57.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"Under\",\"Over\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "Over 57.5 total points",
+   "marketSides": [
+    {
+     "description": "Over",
+     "long": true,
+     "teamId": null
+    },
+    {
+     "description": "Under",
+     "long": false,
+     "teamId": null
+    }
+   ]
+  },
+  {
+   "id": "520467",
+   "slug": "tsc-cfb-ncar-tcu-2026-08-29-total-59pt5",
+   "sportsMarketType": "football_team_full_game_total",
+   "marketType": "totals",
+   "line": 59.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"Under\",\"Over\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "Over 59.5 total points",
+   "marketSides": [
+    {
+     "description": "Over",
+     "long": true,
+     "teamId": null
+    },
+    {
+     "description": "Under",
+     "long": false,
+     "teamId": null
+    }
+   ]
+  },
+  {
+   "id": "520468",
+   "slug": "tsc-cfb-ncar-tcu-2026-08-29-total-61pt5",
+   "sportsMarketType": "football_team_full_game_total",
+   "marketType": "totals",
+   "line": 61.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"Over\",\"Under\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "Over 61.5 total points",
+   "marketSides": [
+    {
+     "description": "Over",
+     "long": true,
+     "teamId": null
+    },
+    {
+     "description": "Under",
+     "long": false,
+     "teamId": null
+    }
+   ]
+  },
+  {
+   "id": "520469",
+   "slug": "tsc-cfb-ncar-tcu-2026-08-29-total-63pt5",
+   "sportsMarketType": "football_team_full_game_total",
+   "marketType": "totals",
+   "line": 63.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"Over\",\"Under\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "Over 63.5 total points",
+   "marketSides": [
+    {
+     "description": "Over",
+     "long": true,
+     "teamId": null
+    },
+    {
+     "description": "Under",
+     "long": false,
+     "teamId": null
+    }
+   ]
+  },
+  {
+   "id": "520470",
+   "slug": "tsc-cfb-ncar-tcu-2026-08-29-total-65pt5",
+   "sportsMarketType": "football_team_full_game_total",
+   "marketType": "totals",
+   "line": 65.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"Over\",\"Under\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "Over 65.5 total points",
+   "marketSides": [
+    {
+     "description": "Over",
+     "long": true,
+     "teamId": null
+    },
+    {
+     "description": "Under",
+     "long": false,
+     "teamId": null
+    }
+   ]
+  },
+  {
+   "id": "520471",
+   "slug": "tsc-cfb-ncar-tcu-2026-08-29-total-67pt5",
+   "sportsMarketType": "football_team_full_game_total",
+   "marketType": "totals",
+   "line": 67.5,
+   "active": false,
+   "closed": true,
+   "outcomes": "[\"Under\",\"Over\"]",
+   "outcomePrices": "[\"0\",\"1\"]",
+   "title": "Over 67.5 total points",
+   "marketSides": [
+    {
+     "description": "Over",
+     "long": true,
+     "teamId": null
+    },
+    {
+     "description": "Under",
+     "long": false,
+     "teamId": null
+    }
+   ]
+  }
+ ]
+}

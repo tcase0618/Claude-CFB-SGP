@@ -75,7 +75,7 @@ async function route() {
   const app = $('#app');
   app.innerHTML = '<div class="loading">Computing…</div>';
   const V = {dashboard, players: playersView, teams: teamsView, matchup: matchupView, predictions: predictionsView,
-             simulations: simulationsView, recruiting: recruitingView, transfers: transfersView, audit: auditView}[h.r] || dashboard;
+             simulations: simulationsView, markets: marketsView, recruiting: recruitingView, transfers: transfersView, audit: auditView}[h.r] || dashboard;
   try { await V(app, h); } catch (e) { console.error(e); app.innerHTML = err(e); }
 }
 
@@ -405,6 +405,7 @@ async function predictionsView(app, h) {
   app.innerHTML = ctrl + `<div class="grid g2">
     ${panel(`${E(teamName(away))} at ${E(teamName(home))} — week ${week}`, predictionBlock(fc, fc.game) + `<h3>Most likely final scores</h3><div class="chips">${fc.top_scores.map(s => `<span class="chip">${s.home}–${s.away} · ${pc(s.prob)}</span>`).join('')}</div>`)}
     ${panel('Score distribution', scoreDist(fc, {h: 170}) + simOutcomes(fc))}
+    ${fc.market ? panel('Market comparison — Polymarket US', marketCompare(fc), fc.market.kind === 'close' ? 'closing price (pre-kickoff)' : 'live order book') : ''}
     ${panel('Key drivers', driversBlock(fc, 11))}
     ${panel('Injury & player scenarios', scenarioBlock(fc))}
     ${panel(`${E(teamName(home))} player projections`, fullProj(fc, 'home'), 'full distributions')}
@@ -444,6 +445,81 @@ async function simulationsView(app, h) {
     }).join('')}</table><div class="note">${has ? 'Stored walk-forward (backtest) predictions made with data available before kickoff.' : 'No stored predictions for this week (not in backtest window). Use "simulate" to run on demand.'}</div>`, `${rows.length} games`);
 }
 
+/* ------------------------------------------------------------------ markets (Polymarket US) */
+function marketCompare(fc) {
+  const m = fc.market, H = teamAbbr(fc.home_id);
+  return `<table><tr><th></th><th class="n">Model</th><th class="n">Market</th><th class="n">Model − market</th></tr>
+    <tr><td>${E(H)} win prob</td><td class="n">${pc(fc.home_win_prob)}</td><td class="n">${pc(m.p_home)}</td><td class="n ${cls(m.model_minus_market_p)}">${m.model_minus_market_p == null ? '—' : fs(100 * m.model_minus_market_p, 1) + ' pp'}</td></tr>
+    <tr><td>${E(H)} margin</td><td class="n">${fs(fc.margin.mean, 1)}</td><td class="n">${fs(m.margin_home, 1)}</td><td class="n">${fs(m.model_minus_market_margin, 1)}</td></tr>
+    <tr><td>Total</td><td class="n">${f(fc.total.mean, 1)}</td><td class="n">${f(m.total, 1)}</td><td class="n">${fs(m.model_minus_market_total, 1)}</td></tr></table>
+    <div class="note">${E(m.source)} · ${E(m.kind)} · as of ${E((m.as_of || '').replace('T', ' ').slice(0, 16))} · quality ${E(m.quality)}. Gaps are model disagreement, not a recommendation.</div>`;
+}
+async function marketsView(app, h) {
+  if (h.id) return marketEvent(app, h.id);
+  const kind = h.q.get('kind') || 'live';
+  let b, cal;
+  try { [b, cal] = await Promise.all([api(`/api/markets/board?kind=${kind}`), api('/api/markets/calibration')]); }
+  catch (e) { app.innerHTML = panel('Markets', `<div class="sub">${E(e.message)}</div><div class="note">Sync with <code>python -m cfbquant.cli markets live</code> (free public API, no key).</div>`); return; }
+  const rows = b.events;
+  const banner = `<div class="panel" style="margin-bottom:10px;border-color:#2b6b4a"><b class="pos">REAL MARKET DATA</b> <span class="sub">${E(b.note)} Last sync ${E((b.synced_at || '').replace('T', ' ').slice(0, 16))} UTC.</span>
+    ${b.synthetic_model_db ? '<div class="note amb">The model database is the fictional synthetic league, so these real games are not linked to model forecasts. Load CFBD data to compare model vs market.</div>' : ''}</div>`;
+  const rk = r => r && r !== '0' ? `<span class="mut">#${r}</span> ` : '';
+  const status = e => e.live || e.in_play ? `<span class="neg">IN-PLAY ${E(e.period || '')} ${E(e.elapsed || '')}</span>` : e.closed || e.ended ? 'Final' : E((e.start_time || '').replace('T', ' ').slice(5, 16));
+  const score = e => e.away_score != null ? `${e.away_score}–${e.home_score}` : '';
+  app.innerHTML = banner + `<div class="grid" style="grid-template-columns:2.2fr 1fr;gap:10px">
+    ${panel(`College football board — ${kind === 'live' ? 'live & upcoming' : 'closing prices'}`, `<div class="chips" style="margin-bottom:6px"><a class="chip ${kind === 'live' ? 'on' : ''}" href="#/markets?kind=live">Live / upcoming</a><a class="chip ${kind === 'close' ? 'on' : ''}" href="#/markets?kind=close">Closing (final)</a><input class="search" id="mks" placeholder="Filter team…" style="max-width:200px;margin:0 0 0 8px"></div>
+      <div class="scroll" style="max-height:74vh"><table id="mkt"><tr><th>Kickoff / status</th><th>Away</th><th>Home</th><th class="n">Score</th><th class="n">P(away)</th><th class="n">P(home)</th><th style="width:90px"></th><th class="n">Home spread</th><th class="n">Margin SD</th><th class="n">Total</th><th class="n">Rungs</th><th>Quality</th>${b.linked_to_model ? '<th class="n">Model</th>' : ''}</tr>
+      ${rows.map(e => `<tr data-n="${E(((e.away || '') + ' ' + (e.home || '')).toLowerCase())}"><td>${status(e)}</td><td><a href="#/markets/${e.event_id}">${rk(e.away_rank)}${E(e.away || '')}</a></td><td><a href="#/markets/${e.event_id}">${rk(e.home_rank)}${E(e.home || '')}</a></td><td class="n">${score(e)}</td>
+        <td class="n">${pc(e.p_away_win)}</td><td class="n">${pc(e.p_home_win)}</td><td>${C.pbar(e.p_home_win == null ? null : 100 * e.p_home_win)}</td>
+        <td class="n">${e.margin_home_mean == null ? '—' : (e.margin_home_mean >= 0 ? '−' : '+') + f(Math.abs(e.margin_home_mean), 1)}</td><td class="n">${f(e.margin_sd, 1)}</td><td class="n">${f(e.total_mean, 1)}</td><td class="n mut">${e.n_spread}/${e.n_total}</td><td class="sub">${E(e.quality)}</td>
+        ${b.linked_to_model ? `<td class="n">${e.game_id ? `<a href="#/predictions?home=${e.home_id}&away=${e.away_id}">forecast</a>` : '—'}</td>` : ''}</tr>`).join('')}</table></div>`, `${rows.length} games ${tag('observed')}`)}
+    ${panel('Market calibration (closing moneylines)', cal.n ? `<table><tr><td>Settled games</td><td class="n">${cal.n}</td></tr><tr><td>Log loss [90% CI]</td><td class="n">${f(cal.log_loss[0], 4)} <span class="mut">[${f(cal.log_loss[1], 3)}, ${f(cal.log_loss[2], 3)}]</span></td></tr>
+      <tr><td>Brier</td><td class="n">${f(cal.brier[0], 4)}</td></tr><tr><td>Favorite accuracy</td><td class="n">${pc(cal.accuracy)}</td></tr>
+      <tr><td>Favorites: win rate − price</td><td class="n">${fs(100 * cal.favorite_win_rate_minus_price[0], 1)} pp <span class="mut">[${fs(100 * cal.favorite_win_rate_minus_price[1], 1)}, ${fs(100 * cal.favorite_win_rate_minus_price[2], 1)}]</span></td></tr>
+      <tr><td>Score-feed / settlement conflicts</td><td class="n ${cal.score_conflicts ? 'amb' : ''}">${cal.score_conflicts}</td></tr></table>
+      ${C.calib(cal.calibration.points, {color: '#2fdc8a'})}<div class="sub">slope ${f(cal.calibration.slope, 2)}, intercept ${f(cal.calibration.intercept, 2)} · ${E((cal.first_game || '').slice(0, 10))} → ${E((cal.last_game || '').slice(0, 10))}</div><div class="note">${E(cal.note)}</div>` : `<div class="sub">${E(cal.note)}</div>`)}
+  </div>`;
+  $('#mks').oninput = e => document.querySelectorAll('#mkt tr[data-n]').forEach(r => r.style.display = r.dataset.n.includes(e.target.value.toLowerCase()) ? '' : 'none');
+}
+function ladderChart(points, xKey, yKey, mean, sd, kind, o = {}) {
+  const w = o.w || 420, h = o.h || 190, m = {l: 34, r: 8, t: 8, b: 24};
+  const pts = points.filter(p => p[yKey] != null);
+  if (!pts.length) return '<div class="sub">No ladder prices</div>';
+  const xs = pts.map(p => p[xKey]); const x0 = Math.min(...xs), x1 = Math.max(...xs) === x0 ? x0 + 1 : Math.max(...xs);
+  const X = x => m.l + (x - x0) / (x1 - x0) * (w - m.l - m.r), Y = v => h - m.b - v * (h - m.t - m.b);
+  const Phi = z => 0.5 * (1 + Math.tanh(0.7978845608 * (z + 0.044715 * z * z * z)));
+  let s = `<svg viewBox="0 0 ${w} ${h}" width="100%">`;
+  [0, .25, .5, .75, 1].forEach(v => s += `<line x1="${m.l}" x2="${w - m.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="#1d2a58"/><text x="${m.l - 3}" y="${Y(v) + 3}" text-anchor="end">${(v * 100).toFixed(0)}%</text>`);
+  const step = Math.max(1, Math.round((x1 - x0) / 8));
+  for (let x = Math.ceil(x0); x <= x1; x += step) s += `<text x="${X(x)}" y="${h - 7}" text-anchor="middle">${x}</text>`;
+  if (mean != null && sd) {
+    const curve = []; for (let i = 0; i <= 60; i++) { const x = x0 + (x1 - x0) * i / 60; const z = kind === 'spread' ? (mean + x) / sd : (mean - x) / sd; curve.push(`${X(x)},${Y(Phi(z))}`); }
+    s += `<polyline fill="none" stroke="#7b5cff" stroke-width="1.6" points="${curve.join(' ')}"/>`;
+  }
+  pts.forEach(p => s += `<circle cx="${X(p[xKey])}" cy="${Y(p[yKey])}" r="3" fill="#2fdc8a"><title>line ${p[xKey]}: ${(p[yKey] * 100).toFixed(1)}% (bid ${p.bid ?? '—'} / ask ${p.ask ?? '—'})</title></circle>`);
+  return s + '</svg>';
+}
+async function marketEvent(app, id) {
+  const d = await api(`/api/markets/event/${id}`);
+  const e = d.event, kind = d.live && (d.live.spread_ladder.length || d.live.moneyline.length) ? 'live' : 'close';
+  const L = d[kind], imp = d.implied.filter(x => x.kind === kind).slice(-1)[0] || {};
+  const A = e.away_abbr || e.away, Hh = e.home_abbr || e.home;
+  const props = (L.props || []);
+  app.innerHTML = `<div class="row" style="margin-bottom:6px"><a href="#/markets">← Markets board</a><span class="sub" style="margin-left:10px">${E(d.note)}</span></div>
+  <div class="grid g2">
+    ${panel(`${E(e.away)} at ${E(e.home)}`, `<div class="row between wrap">
+      <div class="kpi big-away" style="flex:1"><div class="l">${E(A)} win</div><div class="v">${pc(imp.p_away_win)}</div></div>
+      <div class="kpi" style="flex:1.2"><div class="l">Market-implied</div><div class="teamline">${E(Hh)} ${imp.margin_home_mean == null ? '' : (imp.margin_home_mean >= 0 ? '−' : '+') + f(Math.abs(imp.margin_home_mean), 1)}</div><div class="sub">Total ${f(imp.total_mean, 1)} · margin SD ${f(imp.margin_sd, 1)}</div></div>
+      <div class="kpi big-home" style="flex:1"><div class="l">${E(Hh)} win</div><div class="v">${pc(imp.p_home_win)}</div></div></div>
+      <div class="sub" style="margin-top:4px">${kind === 'close' ? 'Closing prices (last book sample at or before kickoff)' : 'Live order book'} · ${e.live ? 'LIVE ' + E(e.period || '') : e.closed ? 'Final' : 'Kickoff ' + E((e.start_time || '').replace('T', ' ').slice(0, 16)) + ' UTC'} ${e.away_score != null ? '· score ' + e.away_score + '–' + e.home_score : ''}
+      ${e.score_conflict ? '<div class="note amb">Polymarket score feed disagrees with its own settlement for this game.</div>' : ''}</div>`)}
+    ${panel(`${E(Hh)} win probability — last 7 days`, C.line([{name: 'P(home)', color: '#2fdc8a', points: d.history.map(x => [x.t, x.p_home])}], {h: 170, y0: 0, y1: 1, fmt: v => (v * 100).toFixed(0) + '%', xlab: t => new Date(t * 1000).toISOString().slice(5, 10), empty: d.history_error || 'No history'}))}
+    ${panel('Spread ladder', ladderChart(L.spread_ladder, 'line_home', 'p_home_cover', imp.margin_home_mean, imp.margin_sd, 'spread') + `<div class="note">Dots: P(${E(Hh)} margin + line &gt; 0) at each alternate line. Curve: fitted normal (mean ${fs(imp.margin_home_mean, 1)}, SD ${f(imp.margin_sd, 1)}, fit RMSE ${f(imp.spread_fit_rmse, 3)}).</div>`, `${L.spread_ladder.length} rungs`)}
+    ${panel('Total ladder', ladderChart(L.total_ladder, 'line', 'mid', imp.total_mean, imp.total_sd, 'total') + `<div class="note">Dots: P(total &gt; line). Curve: fitted normal (mean ${f(imp.total_mean, 1)}, SD ${f(imp.total_sd, 1)}).</div>`, `${L.total_ladder.length} rungs`)}
+    ${props.length ? panel('Team stat props', `<table><tr><th>Team</th><th>Stat</th><th class="n">Line</th><th class="n">P(over)</th><th class="n">Bid / Ask</th></tr>${props.map(p => `<tr><td>${p.long_pm_team_id === e.home_pm_team_id ? E(Hh) : p.long_pm_team_id === e.away_pm_team_id ? E(A) : '—'}</td><td>${E(p.stat)}</td><td class="n">${f(p.line, 1)}</td><td class="n">${pc(p.mid)}</td><td class="n mut">${f(p.bid, 3)} / ${f(p.ask, 3)}</td></tr>`).join('')}</table>`) : ''}
+  </div>`;
+}
+
 /* ------------------------------------------------------------------ recruiting */
 async function recruitingView(app, h) {
   const team = h.q.get('team') || '';
@@ -473,7 +549,7 @@ async function auditView(app) {
   const a = await api('/api/audit');
   const V = a.validation;
   if (!V.length) { app.innerHTML = panel('Model audit', '<div class="sub">No stored validation results. Run <code>python -m cfbquant.cli backtest --test …</code></div>'); return; }
-  const models = ['sim_v1_cal', 'sim_v1', 'elo', 'ridge_margin', 'xgb_margin'];
+  const models = ['sim_v1_cal', 'sim_v1', 'elo', 'ridge_margin', 'xgb_margin', 'polymarket_close'].filter(m => V.some(v => v.model_version === m));
   const g = (mv, m, sc = 'overall') => V.find(v => v.model_version === mv && v.metric === m && v.scope === sc);
   const cell = x => x ? `${f(x.value, 4)} <span class="mut">[${f(x.ci_low, 3)}, ${f(x.ci_high, 3)}]</span>` : '—';
   const dec = V.find(v => v.metric === 'promotion_decision');
@@ -482,6 +558,7 @@ async function auditView(app) {
   const playerScopes = [...new Set(V.filter(v => v.scope.startsWith('player:')).map(v => v.scope))];
   app.innerHTML = `<div class="grid g2">
     ${panel('Game winner — out-of-sample', `<table><tr><th>Model</th><th>Log loss [90% CI]</th><th>Brier [90% CI]</th><th class="n">Accuracy</th><th class="n">n</th></tr>${models.map(m => `<tr><td>${m}</td><td class="n">${cell(g(m, 'log_loss'))}</td><td class="n">${cell(g(m, 'brier'))}</td><td class="n">${pc(g(m, 'accuracy')?.value)}</td><td class="n">${g(m, 'log_loss')?.n ?? ''}</td></tr>`).join('')}</table>
+      ${g('sim_v1_cal', 'log_loss_minus_market') ? `<div class="note">Model vs Polymarket US closing price (games with a market): Δ log loss ${cell(g('sim_v1_cal', 'log_loss_minus_market'))}; edge ≥5pp return/contract at mid ${cell(g('sim_v1_cal', 'return_per_contract_at_mid', 'edge>=5pp'))}</div>` : '<div class="note">Market benchmark: none (requires real CFBD games that map to Polymarket US events).</div>'}
       <div class="note">Promotion gate (sim vs Elo, paired log-loss difference): ${dec ? `${f(dec.detail_json.value, 4)} [${f(dec.ci_low, 4)}, ${f(dec.ci_high, 4)}] → <b class="${dec.value ? 'pos' : 'amb'}">${dec.value ? 'PROMOTED to production' : 'NOT promoted (CI overlaps 0) — Elo remains production'}</b>` : 'n/a'}</div>`, 'walk-forward, data before kickoff only')}
     ${panel('Calibration (win probability)', `<div class="grid g2"><div><div class="sub">Simulation (walk-forward Platt)</div>${C.calib(cal?.detail_json?.points, {color: HOME})}<div class="sub">slope ${f(cal?.detail_json?.slope, 2)}, intercept ${f(cal?.detail_json?.intercept, 2)}</div></div><div><div class="sub">Simulation (raw)</div>${C.calib(calr?.detail_json?.points, {color: '#33c6ff'})}<div class="sub">slope ${f(calr?.detail_json?.slope, 2)}, intercept ${f(calr?.detail_json?.intercept, 2)}</div></div></div>`)}
     ${panel('Points & intervals', `<table><tr><th>Metric</th><th>Value [90% CI]</th></tr>${[['Margin MAE (sim)', 'sim_v1', 'margin_mae'], ['Margin MAE (Elo)', 'elo', 'margin_mae'], ['Margin MAE (ridge)', 'ridge_margin', 'margin_mae'], ['Margin MAE (XGB)', 'xgb_margin', 'margin_mae'], ['Total points MAE', 'sim_v1', 'total_mae'], ['Total bias (pred − actual)', 'sim_v1', 'total_bias'], ['Team score MAE', 'sim_v1', 'score_mae'], ['Margin 80% interval coverage', 'sim_v1', 'margin_80_coverage'], ['Total 80% interval coverage', 'sim_v1', 'total_80_coverage']].map(([l, m, k]) => `<tr><td>${l}</td><td class="n">${cell(g(m, k))}</td></tr>`).join('')}

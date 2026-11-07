@@ -185,6 +185,7 @@ def forecast_game(conn, home: int, away: int, season: int, week: int, *, n_sims:
                 "model_version": MODEL_VERSION, "seed": seed, "as_of": f"{season} before week {week}",
                 "generated_at": utcnow(), "params": {"home": _pdict(hp), "away": _pdict(ap)}})
     out["players"] = player_projections(res, [hs, as_], est.player_info)
+    out["market"] = market_comparison(conn, home, away, season, week, out)
     out["consistency_checks"] = consistency_checks(res)
     n_small = max(2000, n_sims // 4)
     base_small = None
@@ -231,6 +232,37 @@ def forecast_game(conn, home: int, away: int, season: int, week: int, *, n_sims:
                          "away_pts": float(r2.away_pts.mean())})
         out["scenarios"] = rows
     return out
+
+
+def market_comparison(conn, home, away, season, week, fc) -> dict | None:
+    """Polymarket US prices for this game (if the active DB is real and the game maps to a market event)."""
+    try:
+        from ..db import is_synthetic
+        from ..ingest.polymarket import market_for_games, markets_db_path, open_markets_db
+        if is_synthetic(conn) or not markets_db_path().exists():
+            return None
+        g = conn.execute("SELECT game_id, completed FROM games WHERE season=? AND week=? AND home_id=? AND away_id=?",
+                         (season, week, home, away)).fetchone()
+        if not g:
+            return None
+        mc = open_markets_db()
+        for kind in ("close", "live"):
+            m = market_for_games(mc, conn, kind=kind)
+            m = m[m.game_id == g[0]] if len(m) else m
+            if len(m):
+                r = m.iloc[-1]
+                return {"source": "Polymarket US", "kind": kind, "as_of": r.ts, "quality": r.quality,
+                        "p_home": _nn(r.mkt_p_home), "margin_home": _nn(r.mkt_margin_home), "total": _nn(r.mkt_total),
+                        "model_minus_market_p": None if pd.isna(r.mkt_p_home) else fc["home_win_prob"] - float(r.mkt_p_home),
+                        "model_minus_market_margin": None if pd.isna(r.mkt_margin_home) else fc["margin"]["mean"] - float(r.mkt_margin_home),
+                        "model_minus_market_total": None if pd.isna(r.mkt_total) else fc["total"]["mean"] - float(r.mkt_total)}
+    except Exception:
+        return None
+    return None
+
+
+def _nn(v):
+    return None if v is None or pd.isna(v) else float(v)
 
 
 def consistency_checks(res) -> dict:

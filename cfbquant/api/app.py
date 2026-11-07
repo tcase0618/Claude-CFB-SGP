@@ -437,6 +437,126 @@ def audit():
             "feature_importance_note": "Driver attribution for each forecast is computed by unit neutralisation (see /api/forecast drivers)."}
 
 
+# ------------------------------------------------------------------ markets (Polymarket US, real public data)
+_mconn = None
+
+
+def mconn():
+    global _mconn
+    from ..ingest.polymarket import markets_db_path, open_markets_db
+    if _mconn is None:
+        if not markets_db_path().exists():
+            raise HTTPException(404, "No market data yet. Run: python -m cfbquant.cli markets live")
+        _mconn = open_markets_db()
+    return _mconn
+
+
+def mq(sql, params=()):
+    with _lock:
+        return df(mconn(), sql, params)
+
+
+MARKET_NOTE = ("Real Polymarket US market data (public gateway, no API key). Prices are order-book mids; "
+               "implied spreads/totals are normal fits to the alternate-line ladders. Teams listed away-first per Polymarket.")
+
+
+@app.get("/api/markets/board")
+def markets_board(kind: str = "live", days: int = 8):
+    ev = mq("""SELECT e.*, ta.name away, ta.display_abbr away_abbr, ta.ranking away_rank, ta.color away_color, ta.conference away_conf,
+               th.name home, th.display_abbr home_abbr, th.ranking home_rank, th.color home_color, th.conference home_conf
+               FROM pm_events e LEFT JOIN pm_teams ta ON ta.pm_team_id=e.away_pm_team_id LEFT JOIN pm_teams th ON th.pm_team_id=e.home_pm_team_id""")
+    imp = mq("SELECT * FROM pm_implied WHERE kind=?", (kind,))
+    if imp.empty:
+        return {"kind": kind, "events": [], "note": MARKET_NOTE, "synced_at": None, "linked_to_model": False}
+    imp = imp.sort_values("ts").groupby("event_id").tail(1)
+    d = ev.merge(imp, on="event_id", how="inner")
+    if kind == "live":
+        d = d[(d.closed == 0) & (d.ended == 0)]
+    d = d.sort_values("start_time")
+    linked = False
+    c = conn()
+    if not is_synthetic(c):
+        from ..ingest.polymarket import map_events_to_games
+        mp = map_events_to_games(mconn(), c)
+        if not mp.empty:
+            d = d.merge(mp, on="event_id", how="left")
+            linked = True
+    last = mconn().execute("SELECT MAX(ts) FROM pm_sync_log WHERE what=?", (kind,)).fetchone()[0]
+    return {"kind": kind, "events": records(d), "note": MARKET_NOTE, "synced_at": last, "linked_to_model": linked,
+            "synthetic_model_db": is_synthetic(c)}
+
+
+@app.get("/api/markets/event/{event_id}")
+def market_event(event_id: str, history: bool = True):
+    from ..ingest.polymarket import MONEYLINE, PROP_TYPES, SPREAD, TOTAL, PolymarketUSClient, mid_from_history_point
+    ev = mq("""SELECT e.*, ta.name away, th.name home, ta.display_abbr away_abbr, th.display_abbr home_abbr FROM pm_events e
+               LEFT JOIN pm_teams ta ON ta.pm_team_id=e.away_pm_team_id LEFT JOIN pm_teams th ON th.pm_team_id=e.home_pm_team_id
+               WHERE e.event_id=?""", (event_id,))
+    if ev.empty:
+        raise HTTPException(404, "event not found")
+    e = ev.iloc[0].to_dict()
+    mk = mq("SELECT * FROM pm_markets WHERE event_id=?", (event_id,))
+    qt = mq("""SELECT q.* FROM pm_quotes q JOIN pm_markets m USING(market_slug) WHERE m.event_id=?""", (event_id,))
+    imp = mq("SELECT * FROM pm_implied WHERE event_id=? ORDER BY ts", (event_id,))
+    out = {"event": clean(e), "implied": records(imp), "note": MARKET_NOTE}
+    if not qt.empty:
+        qt = qt.sort_values("ts").groupby(["market_slug", "kind"]).tail(1)
+    for kind in ("live", "close"):
+        q = qt[qt.kind == kind] if not qt.empty else qt
+        m = mk.merge(q, on="market_slug", how="inner") if not q.empty else mk.iloc[0:0]
+        home = e["home_pm_team_id"]
+        sp = m[m.sports_market_type == SPREAD].copy()
+        if len(sp):   # orient every rung to P(home margin > -L_home)
+            sign = np.where(sp.long_pm_team_id == home, 1.0, -1.0)
+            sp["p_home_cover"] = np.where(sign > 0, sp["mid"], 1 - sp["mid"])
+            sp["line_home"] = sp.line * sign
+        tt = m[m.sports_market_type == TOTAL]
+        pr = m[m.sports_market_type.isin(PROP_TYPES)].assign(stat=lambda d: d.sports_market_type.map(PROP_TYPES))
+        out[kind] = {"moneyline": records(m[m.sports_market_type == MONEYLINE]),
+                     "spread_ladder": records(sp.sort_values("line_home")[["market_slug", "line_home", "p_home_cover", "bid", "ask", "mid"]]) if len(sp) else [],
+                     "total_ladder": records(tt.sort_values("line")[["market_slug", "line", "mid", "bid", "ask"]]) if len(tt) else [],
+                     "props": records(pr[["market_slug", "stat", "line", "long_pm_team_id", "mid", "bid", "ask"]]) if len(pr) else []}
+    out["history"] = []
+    ml = mk[mk.sports_market_type == MONEYLINE]
+    if history and len(ml):
+        try:
+            client = PolymarketUSClient()
+            h = client.history_fixed(ml.iloc[0].market_slug, "INTERVAL_1W")
+            long_is_home = ml.iloc[0].long_pm_team_id == e["home_pm_team_id"]
+            for pt in h:
+                mm = mid_from_history_point(pt)
+                if mm is not None:
+                    out["history"].append({"t": pt["timestamp"], "p_home": mm if long_is_home else 1 - mm})
+        except Exception as ex:   # network optional for drill-down
+            out["history_error"] = str(ex)
+    return clean(out)
+
+
+@app.get("/api/markets/calibration")
+def market_calibration():
+    """How well calibrated were Polymarket US closing moneylines? Outcome = settlement (authoritative for the market)."""
+    from ..models.backtest import _calibration_curve, boot_ci, log_loss
+    d = mq("""SELECT i.event_id, i.p_home_win, i.margin_home_mean, i.total_mean, i.quality, e.title, e.start_time,
+              e.home_pm_team_id, e.away_pm_team_id, e.score_conflict, m.settlement, m.long_pm_team_id
+              FROM pm_implied i JOIN pm_events e USING(event_id)
+              JOIN pm_markets m ON m.event_id=i.event_id AND m.sports_market_type='football_team_full_game_winner'
+              WHERE i.kind='close' AND m.settlement IN (0,1) AND i.p_home_win IS NOT NULL""")
+    if d.empty:
+        return {"n": 0, "note": "No settled closing prices synced yet. Run: python -m cfbquant.cli markets close"}
+    d["home_win"] = np.where(d.long_pm_team_id == d.home_pm_team_id, d.settlement, 1 - d.settlement)
+    y, p = d.home_win.values, d.p_home_win.values
+    fav = np.where(p >= .5, p, 1 - p)
+    fav_won = np.where(p >= .5, y, 1 - y)
+    ll, ll_lo, ll_hi = boot_ci(log_loss(p, y))
+    br, br_lo, br_hi = boot_ci((p - y) ** 2)
+    fw, fw_lo, fw_hi = boot_ci(fav_won - fav)
+    return clean({"n": int(len(d)), "log_loss": [ll, ll_lo, ll_hi], "brier": [br, br_lo, br_hi],
+            "favorite_win_rate_minus_price": [fw, fw_lo, fw_hi], "accuracy": float(((p > .5) == (y == 1)).mean()),
+            "calibration": _calibration_curve(p, y, bins=10), "score_conflicts": int(d.score_conflict.fillna(0).sum()),
+            "first_game": d.start_time.min(), "last_game": d.start_time.max(),
+            "note": "Outcomes from Polymarket settlement. Games where Polymarket's own score feed disagrees with its settlement are counted in score_conflicts."})
+
+
 # ------------------------------------------------------------------ static UI
 WEB = ROOT / "web"
 if WEB.exists():

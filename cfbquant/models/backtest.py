@@ -131,6 +131,7 @@ def run_backtest(conn, test_seasons: list[int], n_sims: int = 400, seed: int = 1
             log(f"  backtest {s} wk{w:>2}: {G} games  ({time.time() - t0:.0f}s)")
     df = pd.DataFrame(rows)
     pp = pd.DataFrame(prow)
+    df = attach_market(conn, df)
     df["margin"] = df.home_pts - df.away_pts
     df["total"] = df.home_pts + df.away_pts
     df["home_win"] = (df.margin > 0).astype(float)
@@ -143,6 +144,29 @@ def run_backtest(conn, test_seasons: list[int], n_sims: int = 400, seed: int = 1
         pp = pp.merge(act, on=["player_id", "game_id", "stat"], how="left")
         pp["actual"] = pp.actual.fillna(0.0)   # projected starter recorded no stat (or did not play)
     return {"games": df, "test": test, "players": pp, "elapsed_s": time.time() - t0}
+
+
+def attach_market(conn, df: pd.DataFrame) -> pd.DataFrame:
+    """Join Polymarket US closing prices (pre-kickoff) when the active DB holds real games that map to market events.
+
+    Never attached to synthetic data (fictional teams cannot map to real markets)."""
+    from ..db import is_synthetic
+    for c in ("mkt_p_home", "mkt_margin_home", "mkt_total"):
+        df[c] = np.nan
+    try:
+        if is_synthetic(conn):
+            return df
+        from ..ingest.polymarket import market_for_games, markets_db_path, open_markets_db
+        if not markets_db_path().exists():
+            return df
+        m = market_for_games(open_markets_db(), conn, kind="close")
+        if m.empty:
+            return df
+        df = df.drop(columns=["mkt_p_home", "mkt_margin_home", "mkt_total"]).merge(
+            m[["game_id", "mkt_p_home", "mkt_margin_home", "mkt_total"]], on="game_id", how="left")
+    except Exception as e:  # market data is an optional benchmark; never break the backtest
+        print(f"  market benchmark unavailable: {e}")
+    return df
 
 
 def _walk_forward_baselines(df: pd.DataFrame) -> pd.DataFrame:
@@ -261,6 +285,30 @@ def evaluate(bt: dict) -> tuple[list[dict], dict]:
     add("sim_v1", "overall", "log_loss_minus_elo", d)
     dc = log_loss(t.sim_cal_p.values, y) - log_loss(t.elo_p.values, y)
     add("sim_v1_cal", "overall", "log_loss_minus_elo", dc)
+    # market benchmark (Polymarket US closing prices) on the subset of games with a market
+    if "mkt_p_home" in t and t.mkt_p_home.notna().sum() >= 20:
+        mk = t[t.mkt_p_home.notna()]
+        ym = mk.home_win.values
+        add("polymarket_close", "overall", "log_loss", log_loss(mk.mkt_p_home.values, ym))
+        add("polymarket_close", "overall", "brier", (mk.mkt_p_home.values - ym) ** 2)
+        add("sim_v1_cal", "market_subset", "log_loss", log_loss(mk.sim_cal_p.values, ym))
+        add("sim_v1_cal", "overall", "log_loss_minus_market", log_loss(mk.sim_cal_p.values, ym) - log_loss(mk.mkt_p_home.values, ym))
+        if mk.mkt_margin_home.notna().sum() >= 20:
+            q = mk[mk.mkt_margin_home.notna()]
+            add("polymarket_close", "overall", "margin_mae", np.abs(q.mkt_margin_home - q.margin).values)
+            add("sim_v1", "market_subset", "margin_mae", np.abs(q.sim_margin - q.margin).values)
+        if mk.mkt_total.notna().sum() >= 20:
+            q = mk[mk.mkt_total.notna()]
+            add("polymarket_close", "overall", "total_mae", np.abs(q.mkt_total - q.total).values)
+            add("sim_v1", "market_subset", "total_mae", np.abs(q.sim_total - q.total).values)
+        # value test: buy the side the model prefers when |model - market| >= 5pp, at the market mid (no fees)
+        e = mk.sim_cal_p - mk.mkt_p_home
+        sel = e.abs() >= 0.05
+        if sel.sum() >= 10:
+            side_home = e[sel] > 0
+            price = np.where(side_home, mk.mkt_p_home[sel], 1 - mk.mkt_p_home[sel])
+            won = np.where(side_home, ym[sel.values], 1 - ym[sel.values])
+            add("sim_v1_cal", "edge>=5pp", "return_per_contract_at_mid", (won - price) / price)
     # calibration curve
     cal = _calibration_curve(t.sim_cal_p.values, y)
     cal_raw = _calibration_curve(t.sim_p.values, y)

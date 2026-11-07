@@ -10,6 +10,13 @@ walk-forward validation with benchmarks and a promotion gate, a FastAPI backend 
 never touched the live API here because no key was available. Treat every real-data claim as unverified until
 `cli ingest` has been run with a key.
 
+## Polymarket US market data (added)
+Live and working against the real public API (no key): live board, closing-price backfill, ladder-implied spreads/totals,
+settlement-based calibration, model-vs-market comparison hooks, and a Markets tab. 9 dedicated tests. Contract semantics were
+verified against real settlements. Details and data-quality findings (incl. a Polymarket score-feed vs settlement conflict)
+are in `docs/MARKETS.md`. Not yet done: model-vs-market evaluation on real games, which needs CFBD data in the model DB, plus
+streaming via the Markets WebSocket and team-prop benchmarking against player projections.
+
 ## Blocked / external dependencies
 | Item | Status | What unblocks it |
 |---|---|---|

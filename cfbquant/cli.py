@@ -5,6 +5,9 @@
   python -m cfbquant.cli analyze --season 2025  # EP/EPA, team & player metrics, ratings, registry
   python -m cfbquant.cli backtest --test 2024,2025 --sims 400
   python -m cfbquant.cli forecast --home ID --away ID --season S --week W
+  python -m cfbquant.cli markets live           # Polymarket US live board (free public API, no key)
+  python -m cfbquant.cli markets close --since 2026-08-20   # closing prices + settlements (cached)
+  python -m cfbquant.cli markets calibration    # how calibrated were closing prices?
   python -m cfbquant.cli serve                  # API + terminal UI on :8000
 """
 from __future__ import annotations
@@ -58,6 +61,9 @@ def main(argv=None):
     s.add_argument("--season", type=int, required=True); s.add_argument("--week", type=int, required=True)
     s.add_argument("--sims", type=int, default=None); s.add_argument("--seed", type=int, default=None)
     s.add_argument("--store", action="store_true")
+    s = sub.add_parser("markets"); s.add_argument("action", choices=["live", "close", "calibration"])
+    s.add_argument("--since", default=None); s.add_argument("--until", default=None); s.add_argument("--limit", type=int, default=None)
+    s.add_argument("--days", type=int, default=8)
     s = sub.add_parser("serve"); s.add_argument("--port", type=int, default=8000); s.add_argument("--host", default="127.0.0.1")
     a = ap.parse_args(argv)
     st = get_settings()
@@ -70,6 +76,20 @@ def main(argv=None):
         with open_db(db) as conn:
             build_synthetic(conn, tuple(_seasons(a.seasons)), a.seed)
             analyze(conn, _seasons(a.seasons))
+        return
+    if a.cmd == "markets":
+        from .ingest import polymarket as pm
+        mc = pm.open_markets_db()
+        cl = pm.PolymarketUSClient()
+        if a.action == "live":
+            pm.sync_live(mc, cl, days_ahead=a.days)
+        elif a.action == "close":
+            pm.sync_closing(mc, cl, start_min=a.since, start_max=a.until, limit=a.limit)
+        else:
+            import os
+            os.environ.setdefault("CFBQ_DB", str(db))
+            from .api.app import market_calibration
+            print(json.dumps({k: v for k, v in market_calibration().items() if k != "calibration"}, indent=1, default=str))
         return
     if a.cmd == "ingest":
         from .ingest.cfbd import CFBDClient, ingest_seasons
