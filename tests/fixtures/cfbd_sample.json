@@ -1,0 +1,38 @@
+{
+ "games": [{"id": 401, "season": 2024, "week": 1, "seasonType": "regular", "startDate": "2024-08-31T23:30:00.000Z",
+            "neutralSite": false, "conferenceGame": true, "venueId": 7, "homeId": 1, "homeTeam": "Alpha State",
+            "homePoints": 24, "awayId": 2, "awayTeam": "Beta Tech", "awayPoints": 17, "completed": true}],
+ "plays": [
+  {"id": 1, "driveId": 11, "gameId": 401, "playNumber": 1, "offense": "Alpha State", "defense": "Beta Tech", "home": "Alpha State",
+   "offenseScore": 0, "defenseScore": 0, "period": 1, "clock": {"minutes": 14, "seconds": 30}, "yardsToGoal": 75, "down": 1,
+   "distance": 10, "yardsGained": 12, "playType": "Pass Reception", "playText": "QB pass complete to WR for 12 yds"},
+  {"id": 2, "driveId": 11, "gameId": 401, "playNumber": 2, "offense": "Alpha State", "defense": "Beta Tech", "home": "Alpha State",
+   "offenseScore": 0, "defenseScore": 0, "period": 1, "clock": {"minutes": 14, "seconds": 0}, "yardsToGoal": 5, "down": 1,
+   "distance": 5, "yardsGained": 5, "playType": "Rushing Touchdown", "playText": "RB run for 5 yds for a TD"},
+  {"id": 3, "driveId": 12, "gameId": 401, "playNumber": 3, "offense": "Beta Tech", "defense": "Alpha State", "home": "Alpha State",
+   "offenseScore": 0, "defenseScore": 7, "period": 2, "clock": {"minutes": 3, "seconds": 0}, "yardsToGoal": 25, "down": 4,
+   "distance": 6, "yardsGained": 0, "playType": "Field Goal Good", "playText": "K 42 yd FG GOOD"},
+  {"id": 4, "driveId": 13, "gameId": 401, "playNumber": 4, "offense": "Alpha State", "defense": "Beta Tech", "home": "Alpha State",
+   "offenseScore": 7, "defenseScore": 3, "period": 3, "clock": {"minutes": 9, "seconds": 0}, "yardsToGoal": 60, "down": 2,
+   "distance": 7, "yardsGained": 0, "playType": "Interception Return Touchdown", "playText": "pass intercepted, returned for TD"},
+  {"id": 5, "driveId": 14, "gameId": 401, "playNumber": 5, "offense": "Alpha State", "defense": "Beta Tech", "home": "Alpha State",
+   "offenseScore": 7, "defenseScore": 10, "period": 3, "clock": {"minutes": 5, "seconds": 0}, "yardsToGoal": 50, "down": 3,
+   "distance": 8, "yardsGained": -7, "playType": "Sack", "playText": "QB sacked by DE for a loss of 7"}
+ ],
+ "play_stats": [
+  {"gameId": 401, "playId": 1, "team": "Alpha State", "athleteId": "100", "athleteName": "Q Back", "statType": "Completion", "stat": 12},
+  {"gameId": 401, "playId": 1, "team": "Alpha State", "athleteId": "200", "athleteName": "W Out", "statType": "Reception", "stat": 12},
+  {"gameId": 401, "playId": 2, "team": "Alpha State", "athleteId": "300", "athleteName": "R Back", "statType": "Rush", "stat": 5},
+  {"gameId": 401, "playId": 4, "team": "Alpha State", "athleteId": "100", "athleteName": "Q Back", "statType": "Interception Thrown", "stat": 1},
+  {"gameId": 401, "playId": 4, "team": "Beta Tech", "athleteId": "900", "athleteName": "C Back", "statType": "Interception", "stat": 1},
+  {"gameId": 401, "playId": 5, "team": "Alpha State", "athleteId": "100", "athleteName": "Q Back", "statType": "Sack Taken", "stat": 1},
+  {"gameId": 401, "playId": 5, "team": "Beta Tech", "athleteId": "800", "athleteName": "D End", "statType": "Sack", "stat": 1},
+  {"gameId": 401, "playId": 5, "team": "Gamma U", "athleteId": "1", "athleteName": "X", "statType": "Rush", "stat": 1}
+ ],
+ "roster": [{"id": 800, "firstName": "D", "lastName": "End", "team": "Alpha State", "height": 76, "weight": 255, "jersey": 91,
+             "year": 3, "position": "DE"}],
+ "box": [{"id": 401, "teams": [{"team": "Beta Tech", "categories": [{"name": "defensive", "types": [
+   {"name": "TOT", "athletes": [{"id": "900", "name": "C Back", "stat": "7"}]},
+   {"name": "TFL", "athletes": [{"id": "800", "name": "D End", "stat": "2"}]},
+   {"name": "PD", "athletes": [{"id": "900", "name": "C Back", "stat": "1"}]}]}]}]}]
+}

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CFB Quant Terminal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <div class="logo">CFB</div>
+    <div><div class="title">CFB QUANT INTELLIGENCE TERMINAL</div>
+      <div class="subtitle">INSTITUTIONAL COLLEGE FOOTBALL ANALYTICS &amp; PREDICTION PLATFORM</div></div>
+  </div>
+  <nav class="tabs" id="tabs">
+    <a data-r="dashboard">Dashboard</a><a data-r="players">Player Intel</a><a data-r="teams">Team Intel</a>
+    <a data-r="matchup">Matchup Lab</a><a data-r="predictions">Predictions</a><a data-r="simulations">Simulations</a>
+    <a data-r="recruiting">Recruiting</a><a data-r="transfers">Transfer Portal</a><a data-r="audit">Model Audit</a>
+  </nav>
+  <div class="ctrls">
+    <label>SEASON<select id="season"></select></label>
+    <label>CONF<select id="conf"><option value="">All</option></select></label>
+    <div class="status" id="status"><span class="dot"></span><span id="status-text">LOADING</span><div id="status-sub"></div></div>
+  </div>
+</header>
+<div id="banner" class="banner hidden"></div>
+<main id="app"><div class="loading">Loading terminal…</div></main>
+<footer class="foot"><span id="foot-left"></span><span>Observed · Calculated · Estimated · Predicted · Unavailable are labelled throughout. No LLM is used at runtime.</span></footer>
+<script src="/static/charts.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

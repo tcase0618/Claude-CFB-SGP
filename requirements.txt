@@ -1,0 +1,14 @@
+# Runtime (no LLM dependencies)
+numpy>=1.26
+pandas>=2.1
+scipy>=1.11
+scikit-learn>=1.3
+fastapi>=0.110
+uvicorn>=0.27
+requests>=2.31
+pyarrow>=14
+# Optional model comparator (used if installed)
+xgboost>=2.0
+# Dev
+pytest>=8
+httpx>=0.27  # test client
