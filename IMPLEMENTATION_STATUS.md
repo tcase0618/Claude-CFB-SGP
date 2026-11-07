@@ -14,7 +14,11 @@ never touched the live API here because no key was available. Treat every real-d
 Live and working against the real public API (no key): live board, closing-price backfill, ladder-implied spreads/totals,
 settlement-based calibration, model-vs-market comparison hooks, and a Markets tab. 9 dedicated tests. Contract semantics were
 verified against real settlements. Details and data-quality findings (incl. a Polymarket score-feed vs settlement conflict)
-are in `docs/MARKETS.md`. Not yet done: model-vs-market evaluation on real games, which needs CFBD data in the model DB, plus
+are in `docs/MARKETS.md`.
+
+**Real-data benchmark (2026 FBS, 512 games):** Polymarket US closing moneylines had a log loss of 0.499 [0.465, 0.530],
+Brier 0.167 and calibration slope 1.02. The ladder-implied spread MAE was 11.4 and total MAE 12.5. That's the target for the
+model once CFBD data is loaded. Not yet done: model-vs-market evaluation on real games, which needs CFBD data in the model DB, plus
 streaming via the Markets WebSocket and team-prop benchmarking against player projections.
 
 ## Blocked / external dependencies

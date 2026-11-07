@@ -146,6 +146,11 @@ class PolymarketUSClient:
                 self._ok_streak = 0
             if r.status_code == 404:
                 return None
+            if r.status_code >= 500:      # transient gateway errors: retry, then skip this resource
+                if attempt < 2:
+                    time.sleep(2 + 2 * attempt)
+                    continue
+                return None
             r.raise_for_status()
             data = r.json()
             if cache:

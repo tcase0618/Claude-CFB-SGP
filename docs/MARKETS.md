@@ -67,6 +67,28 @@ whose YES is "UNC +4.5"). Titles are never parsed.
   orientation comes from the model's game record (`pm_home_is_home`), never from Polymarket order.
 * Some FCS teams have no conference. The closing backfill defaults to FBS-vs-FBS games (`fbs_only=True`).
 
+## Results: 2026 FBS closing prices (real data, 512 games, Aug 29 – Nov 7)
+
+| Measure | Value |
+|---|---|
+| Moneyline log loss [90% CI] | 0.499 [0.465, 0.530] |
+| Brier | 0.167 |
+| Favorite accuracy | 76.5% |
+| Calibration slope / intercept (logit) | 1.02 / +0.15 |
+| Favorites' win rate − price | +2.1 pp [−0.7, +5.1] |
+| Ladder-implied spread: MAE / bias | 11.4 pts / +1.2 |
+| Actual margin residual SD vs implied SD | 14.4 vs 13.6 → implied 80% interval covers 77% |
+| Ladder-implied total: MAE / bias | 12.5 pts / +0.7 |
+| Score-feed / settlement conflicts (FBS) | 0 |
+
+Takeaways:
+* Closing moneylines are well calibrated (slope ≈ 1).
+* The implied margin distribution is slightly too narrow (77% vs 80% coverage).
+* "Home" here means Polymarket's second-listed team: neutral sites aren't identified, so don't read the +0.15
+  intercept as home-field mispricing.
+* **This is the bar a real-data model has to clear:** log loss ≈ 0.50, spread MAE ≈ 11.4. The synthetic-league backtest
+  numbers in `IMPLEMENTATION_STATUS.md` are not comparable.
+
 ## How it plugs into the platform
 
 * **Mapping:** Polymarket events are matched to model games by unordered normalised team names, within 36 h of kickoff (`map_events_to_games`).
