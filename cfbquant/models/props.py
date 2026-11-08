@@ -36,12 +36,13 @@ _DEF_ADD = {"rcore_def": 0.5, "yac_def": 0.5}
 @dataclass(frozen=True)
 class Uncertainty:
     team_sd: float = float(os.environ.get("CFBQ_UNC_TEAM", "0.25"))     # level units, per unit per lane
+    env_sd: float = float(os.environ.get("CFBQ_UNC_ENV", "0.45"))       # shared game-environment shock (both offences)
     pace_sd: float = float(os.environ.get("CFBQ_UNC_PACE", "0.07"))     # log-scale pace multiplier
     usage_conc: float = float(os.environ.get("CFBQ_UNC_USAGE", "30"))   # Dirichlet concentration (lower = more spread)
 
     @classmethod
     def none(cls) -> "Uncertainty":
-        return cls(0.0, 0.0, 0.0)
+        return cls(0.0, 0.0, 0.0, 0.0)
 
 
 def materialize(P: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
@@ -71,8 +72,15 @@ def perturb(P: dict[str, np.ndarray], rng: np.random.Generator, unc: Uncertainty
         for side in (0, 1):
             shift_offense(P, side, rng.normal(0, unc.team_sd, L))
             shift_defense(P, side, rng.normal(0, unc.team_sd, L))
+    if unc.env_sd > 0:
+        # weather, officiating, tempo: moves both offences together, so it widens the total but not the margin
+        # (real residual SD around the closing total is ~15.6 vs ~13.3 simulated without it)
+        env = rng.normal(0, unc.env_sd, L)
+        for side in (0, 1):
+            shift_offense(P, side, env)
     if unc.pace_sd > 0:
-        P["pace"] *= np.exp(rng.normal(0, unc.pace_sd, P["pace"].shape))
+        common = rng.normal(0, unc.pace_sd * 0.7, (L, 1))
+        P["pace"] *= np.exp(common + rng.normal(0, unc.pace_sd * 0.7, P["pace"].shape))
     if unc.usage_conc > 0:
         for k in ("target_share", "rush_share"):
             a = np.maximum(P[k] * unc.usage_conc, 1e-3)

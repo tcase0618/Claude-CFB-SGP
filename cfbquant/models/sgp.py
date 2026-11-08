@@ -72,15 +72,23 @@ COUNT_STATS = {"pass_cmp", "pass_att", "pass_td", "pass_int", "rush_att", "rush_
 CALIB_STATS = ["pass_yds", "pass_cmp", "pass_td", "rush_yds", "rush_td", "receptions", "rec_yds", "rec_td"]
 
 
-def apply_factor(x: np.ndarray, f: float, count: bool, rng: np.random.Generator) -> np.ndarray:
-    """Rescale a simulated stat by f while keeping its type: yards scale, counts are binomially thinned (f < 1)
-    or topped up with Poisson extras (f > 1), so a count stays an integer and P(X >= k) moves smoothly."""
+# probability a projected starter's game is cut short / role collapses, by slot group. Fitted on 2026 weeks 3-6 only:
+# share of appearing starters below the simulated 5th percentile was ~15% for QB and RB yardage, ~8% WR, ~2% TE.
+EXIT_P = {"QB": 0.08, "RB": 0.10, "WR": 0.03, "TE": 0.0}
+
+
+def apply_factor(x: np.ndarray, f, count: bool, rng: np.random.Generator) -> np.ndarray:
+    """Rescale a simulated stat by f (scalar or per-lane) while keeping its type: yards scale, counts are binomially
+    thinned (f < 1) or topped up with Poisson extras (f > 1), so a count stays an integer and P(X >= k) moves smoothly."""
+    f = np.broadcast_to(np.asarray(f, float), x.shape)
     if not count:
         return x * f
     xi = np.maximum(x, 0).astype(np.int64)
-    if f < 1:
-        return rng.binomial(xi, f).astype(float)
-    return (xi + rng.poisson(xi * (f - 1))).astype(float)
+    out = rng.binomial(xi, np.minimum(f, 1.0)).astype(float)
+    up = f > 1
+    if up.any():
+        out[up] = xi[up] + rng.poisson(xi[up] * (f[up] - 1))
+    return out
 
 
 def calibration_factors(acc: dict, k: float = 150.0, lo: float = 0.75, hi: float = 1.25) -> dict:
@@ -154,7 +162,9 @@ class GameSims:
         self.slots = slots
         self.team_names = team_names
         self.player_names = player_names or {}
-        self.calib = calib or {}                   # base stat -> walk-forward volume factor (see calibrate_stats)
+        self.calib = dict(calib or {})             # base stat -> walk-forward volume factor (see calibration_factors)
+        self.corr_shrink = float(self.calib.pop("_corr_shrink", 1.0))
+        self._exit: dict = {}
         self._rng = np.random.default_rng(seed)
         self._cache: dict = {}
         self.where = {}                            # player_id -> (side, slot)
@@ -163,16 +173,34 @@ class GameSims:
                 if pid is not None and pid not in self.where:
                     self.where[int(pid)] = (side, s)
 
+    def exit_frac(self, pid: int) -> np.ndarray:
+        """Per-lane share of the game the player is on the field for: 1, or U(0, 0.5) with the slot group's exit
+        probability (early injury, benching, limited role). One draw per player, shared by all his stats."""
+        if pid not in self._exit:
+            _, slot = self.where[int(pid)]
+            p = EXIT_P.get(slot[:2], 0.0)
+            f = np.ones(self.n)
+            if p > 0:
+                m = self._rng.random(self.n) < p
+                f[m] = self._rng.uniform(0, 0.5, int(m.sum()))
+            self._exit[pid] = f
+        return self._exit[pid]
+
     def base_stat(self, pid: int, st: str, raw: bool = False) -> np.ndarray:
+        """Simulated stat after the early-exit mixture; `raw` skips only the walk-forward volume factor."""
+        key = (int(pid), st, raw)
+        if key in self._cache:                     # one draw per (player, stat) so every leg sees the same lanes
+            return self._cache[key]
         side, slot = self.where[int(pid)]
         x = self.ps[:, side, SLOT[slot], STAT[st]].astype(float)
+        ef = self.exit_frac(pid)
+        if (ef < 1).any():
+            x = apply_factor(x, ef, st in COUNT_STATS, self._rng)
         f = self.calib.get(st, 1.0)
-        if raw or f == 1.0:
-            return x
-        key = (int(pid), st)
-        if key not in self._cache:                 # one draw per (player, stat) so every leg sees the same lanes
-            self._cache[key] = apply_factor(x, f, st in COUNT_STATS, self._rng)
-        return self._cache[key]
+        if not raw and f != 1.0:
+            x = apply_factor(x, f, st in COUNT_STATS, self._rng)
+        self._cache[key] = x
+        return x
 
     def stat(self, pid: int, stat: str, raw: bool = False) -> np.ndarray:
         return sum(self.base_stat(pid, p, raw) for p in COMPOSITE.get(stat, (stat,)))
@@ -204,12 +232,15 @@ def price(sims: GameSims, legs: list[Leg], book_american: float | None = None, l
         X = X[lanes]
     n = X.shape[0]
     marg = X.mean(axis=0)
-    pj = float(X.all(axis=1).mean())
+    pj_raw = float(X.all(axis=1).mean())
     pi = float(np.prod(marg))
+    # walk-forward shrinkage of the simulated correlation toward independence (alpha < 1 when the sim overstates it)
+    a = sims.corr_shrink
+    pj = pj_raw if a == 1.0 or pi <= 0 or pj_raw <= 0 else float(min(pi * (pj_raw / pi) ** a, min(marg)))
     se = math.sqrt(max(pj * (1 - pj), 1e-9) / n)
     out = {"legs": [dict(l.to_dict(), p=float(m), fair_american=prob_to_american(float(m))) for l, m in zip(legs, marg)],
            "n_legs": len(legs), "p_joint": pj, "p_joint_ci90": [max(0.0, pj - 1.645 * se), min(1.0, pj + 1.645 * se)],
-           "p_indep": pi, "lift": pj / pi if pi > 0 else None, "fair_american": prob_to_american(pj),
+           "p_joint_raw": pj_raw, "corr_shrink": a, "p_indep": pi, "lift": pj / pi if pi > 0 else None, "fair_american": prob_to_american(pj),
            "fair_decimal": 1 / pj if pj > 0 else None, "indep_american": prob_to_american(pi), "n_sims": int(n)}
     if book_american is not None:
         dec = american_to_decimal(book_american)

@@ -6,3 +6,5 @@ data/*.db-*
 data/cache/
 data/parquet/
 .env
+data/*.pkl
+data/cards/

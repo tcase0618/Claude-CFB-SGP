@@ -217,6 +217,61 @@ def persist_sgp(conn, bt: dict, season: int, weeks: list[int]) -> None:
         detail_json) VALUES ('sgp_v1', ?, ?, ?, ?, NULL, NULL, ?, ?)""",
                      [(now, a, b, float(c), int(d), e) for a, b, c, d, e in rows])
     n_cal = int(sum(v[2] for v in bt["acc"].values()))
-    save_prop_calibrator(conn, bt["final_factors"], (f"{season} wk{weeks[0]}", f"{season} wk{weeks[-1]}"), n_cal,
+    factors = dict(bt["final_factors"])
+    factors["_corr_shrink"] = fit_corr_shrink(bt["tickets"])     # live pricing uses alpha fitted on every test week
+    save_prop_calibrator(conn, factors, (f"{season} wk{weeks[0]}", f"{season} wk{weeks[-1]}"), n_cal,
                          "Per-stat volume factors (actual / simulated) for projected starters who appeared; shrunk toward 1")
     conn.commit()
+
+
+def fit_corr_shrink(t: pd.DataFrame) -> float:
+    """alpha minimising ticket log loss of p = p_indep * lift_raw**alpha (pooled over sizes), grid 0..1.2."""
+    v = t[~t.void]
+    if len(v) < 50:
+        return 1.0
+    y = v.hit.values
+    lr = np.log(np.clip(v.p_joint.values, 1e-6, 1) / np.clip(v.p_indep.values, 1e-6, 1))
+    best = (np.inf, 1.0)
+    for a in np.arange(0.0, 1.21, 0.02):
+        p = np.clip(v.p_indep.values * np.exp(a * lr), 1e-4, 1 - 1e-4)
+        ll = -np.mean(y * np.log(p) + (1 - y) * np.log(1 - p))
+        best = min(best, (ll, float(a)))
+    return round(best[1], 2)
+
+
+def split_report(bt: dict, fit_weeks: list[int], test_weeks: list[int]) -> dict:
+    """Out-of-sample view: correlation shrinkage fitted on fit_weeks, scored on test_weeks."""
+    t = bt["tickets"]
+    alpha = fit_corr_shrink(t[t.week.isin(fit_weeks)])
+    v = t[t.week.isin(test_weeks) & ~t.void].copy()
+    lr = np.log(np.clip(v.p_joint, 1e-6, 1) / np.clip(v.p_indep, 1e-6, 1))
+    v["p_shrunk"] = np.minimum(v.p_indep * np.exp(alpha * lr), v.leg_p.map(min))
+    ll = lambda p, y: float(-np.mean(y * np.log(np.clip(p, 1e-4, 1 - 1e-4)) + (1 - y) * np.log(np.clip(1 - p, 1e-4, 1 - 1e-4))))
+    rows = []
+    for size, d in v.groupby("size"):
+        y = d.hit.values
+        rows.append(dict(size=size, n=len(d), actual=y.mean(), se=float(np.sqrt(d.p_shrunk.mul(1 - d.p_shrunk).sum()) / len(d)),
+                         pred_raw=d.p_joint.mean(), pred_shrunk=d.p_shrunk.mean(), pred_indep=d.p_indep.mean(),
+                         ll_raw=ll(d.p_joint.values, y), ll_shrunk=ll(d.p_shrunk.values, y), ll_indep=ll(d.p_indep.values, y),
+                         leg_pred=float(np.mean([np.mean(x) for x in d.leg_p])), leg_hit=d.legs_hit.mean()))
+    legs = []
+    for r in t[t.week.isin(test_weeks) & ~t.void].itertuples():
+        for lp, lh, lab in zip(r.leg_p, r.leg_hit, r.labels.split(" | ")):
+            kind = "team" if (" pts" in lab or lab.startswith("Game ") or lab.endswith(" ML") or
+                              lab.split()[-1].lstrip("+-").replace(".", "").isdigit()) else \
+                ("player_over" if " Over " in lab else "player_under")
+            legs.append(dict(kind=kind, p=lp, hit=float(lh)))
+    L = pd.DataFrame(legs)
+    L["band"] = pd.cut(L.p, [0, 0.55, 0.65, 0.75, 0.85, 1])
+    p = bt["props"]
+    p = p[p.played & p.week.isin(test_weeks) & p.config.str.endswith("_cal")]
+    tails = p.groupby("stat").pit.apply(lambda x: pd.Series({"n": len(x), "below_p05": (x < .05).mean(), "above_p95": (x > .95).mean(),
+                                                              "cov80": ((x > .1) & (x < .9)).mean(), "pit_mean": x.mean()})).unstack()
+    g = bt["games"]
+    g = g[g.week.isin(test_weeks)]
+    return {"alpha": alpha, "tickets": pd.DataFrame(rows).set_index("size").round(4),
+            "legs": L.groupby(["kind", "band"], observed=True).agg(n=("hit", "size"), pred=("p", "mean"), hit=("hit", "mean")).round(3),
+            "props": tails.round(3),
+            "games": pd.Series({"n": len(g), "margin_cov80": ((g.pit_margin > .1) & (g.pit_margin < .9)).mean(),
+                                "total_cov80": ((g.pit_total > .1) & (g.pit_total < .9)).mean(),
+                                "sim_total_sd": g.total_sd.mean(), "real_total_resid_sd": (g.total - g.line_total).std()}).round(3)}

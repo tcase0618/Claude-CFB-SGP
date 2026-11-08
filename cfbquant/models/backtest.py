@@ -405,7 +405,7 @@ def persist(conn, bt: dict, metrics: list[dict], decision: dict) -> None:
     now = utcnow()
     t = bt["test"]
     span = f"{int(t.season.min())}-wk{int(t[t.season == t.season.min()].week.min())}", f"{int(t.season.max())}-wk{int(t[t.season == t.season.max()].week.max())}"
-    conn.execute("DELETE FROM model_validation")
+    conn.execute("DELETE FROM model_validation WHERE model_version <> 'sgp_v1'")   # SGP validation is owned by sgp_backtest
     conn.execute("DELETE FROM player_predictions WHERE prediction_id IN (SELECT prediction_id FROM model_predictions WHERE kind='backtest')")
     conn.execute("DELETE FROM model_predictions WHERE kind='backtest'")
     for mv, fam, status, notes in [

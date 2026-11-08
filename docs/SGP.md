@@ -25,6 +25,9 @@ estimate (as of the week) ─► stack params ─► perturb per lane ─► anc
 | Starter selection | `analytics/team_params.py: _usage` | Recency-weighted usage (QB decay 0.35 per game, others 0.6). ESPN has no injury feed, so who played last week is the best availability signal; raised projected-QB1 appearance from 79% to 89%. |
 | 4th-down policy | `sim/engine.py` | Go-for-it log-odds fitted on 24,111 real 2024–25 FBS 4th downs (the old rule went for it 2–4× too often in FG range, which starved the sim of field goals). |
 | Pace | `analytics/team_params.py: calibrate_pace` | League pace multiplier so simulated scrimmage snaps per team-game match recent real games (was 72 vs 66). |
+| Early-exit mixture | `models/sgp.py: EXIT_P` | Per lane, a projected starter's game is cut short (injury, benching, role collapse) with probability QB 8%, RB 10%, WR 3%, TE 0%; he keeps a uniform 0–50% share of his stats, all stats together. Fitted on weeks 3–6 only, where 15% of appearing QB/RB yardage outcomes fell below the simulated 5th percentile. |
+| Game environment | `models/props.py: perturb` (`env_sd`) | A shared offence shock per lane (SD 0.45 level units) plus a shared pace component: weather/officiating/tempo move both teams together, widening the total without touching the margin (simulated total SD was 13.3 vs 15.6 real around the closing total). |
+| Correlation shrinkage | `models/sgp.py: price` (`corr_shrink`) | p = p_indep × lift^α. α fitted by ticket log loss; 0.8 on weeks 3–6 and on all weeks. Stored with the prop calibrator. |
 | Prop calibrator | `models/sgp.py: calibration_factors, apply_factor` | Per-stat volume factor actual/simulated for projected starters who appeared, from **earlier weeks only**, shrunk toward 1. Yards are scaled; counts are binomially thinned / Poisson-topped so they stay integers. One draw per (player, stat), so every leg on a ticket sees the same lanes. |
 | Pricing | `models/sgp.py: price` | Joint hit share across lanes, independence price, lift, fair American odds, 90% sampling CI; with book odds: EV per unit and Kelly. |
 | Ticket builder | `models/sgp.py: build_tickets` | Beam search for the most positively correlated legs inside each size's leg-probability band (3: 50–85%, 5: 58–88%, 8: 66–92%). One leg per player (same-player stacks are blocked or heavily haircut by books, and their lift is mostly tautology), at most one side leg (ML or spread), realistic minimum lines. Searched on half the lanes, priced on the other half to remove winner's-curse bias. |
@@ -35,8 +38,8 @@ Each leg a book adds carries its margin. At a standard −110 two-way price the 
 2 legs ≈ 9%, 3 ≈ 13%, 5 ≈ 21%, 8 ≈ 31% if priced independently (books then add correlation adjustments on SGPs).
 A long parlay is only +EV if every leg's edge, plus the correlation the book fails to price, outruns that compounding.
 
-* **3-leg — the core.** Highest hit rate, the fastest to validate (a ~30% event is measurable in a few hundred
-  tickets), and correlation lift of 2× on a 3-leg is large relative to the hold.
+* **3-leg — the core.** Highest hit rate, the fastest to validate (a ~25% event is measurable in a few hundred
+  tickets), and a validated ~1.6× correlation lift on a 3-leg is large relative to the hold.
 * **5-leg — the secondary.** Alt lines (≈65%) keep the hit rate near 20%. Most of the value is still correlation.
 * **8-leg — the lottery ticket.** Only with alt-line legs (≈70–80% each). Hit rates around 10–15% need hundreds of
   tickets before the realised rate means anything; size it as a small fraction of the 3-leg stake. Judge the model on
@@ -49,7 +52,44 @@ anchored to the DraftKings line captured by ESPN (closing or near-closing; ESPN 
 factors learned only from earlier weeks, tickets priced on held-out lanes. Results are written to
 `model_validation` (`model_version = 'sgp_v1'`) and shown in the SGP Lab.
 
-RESULTS_PLACEHOLDER
+**Out-of-sample tickets** (α = 0.8 fitted on weeks 3–6, scored on weeks 7–10; 233 games; void tickets excluded):
+
+| Size | Tickets | Hit rate (±1 SE) | Model, shrunk | Model, raw | Independence | Log loss: model / independence |
+|---|---|---|---|---|---|---|
+| 3-leg | 415 | **22.9%** ± 2.1 | 24.2% | 27.8% | 14.1% | 0.535 / 0.566 |
+| 5-leg | 326 | **18.4%** ± 2.1 | 18.0% | 20.2% | 11.4% | 0.477 / 0.498 |
+| 8-leg | 245 | **13.1%** ± 2.1 | 11.8% | 13.1% | 7.8% | 0.388 / 0.411 |
+
+Real tickets hit **~1.6× the independence price at every size**, and the joint model beats independence on log loss
+at every size. That gap is the correlation a same-game parlay is built on; whether it is *money* depends on how much
+of it the book already charges for (unknown from free data — compare `fair_american` with the book's SGP price).
+
+**Legs** (weeks 7–10): team legs (sides, totals, team totals) are calibrated within ~2 pp at every probability level.
+Player overs at main lines are calibrated (63% predicted / 64% hit); alt-line overs remain overconfident
+(78% predicted / 69% hit in the 75–85% band) — the residual low tail. Treat 75%+ player legs as ~70%.
+
+**Player props** (projected starters who appeared, calibrated, weeks 7–10):
+
+| Stat | n | Below sim p5 | Above sim p95 | 80% interval coverage | Mean PIT |
+|---|---|---|---|---|---|
+| Pass yds | 414 | 7.7% | 4.6% | 77.8% | 0.47 |
+| Completions | 414 | 7.2% | 6.0% | 73.4% | 0.46 |
+| Rush yds | 848 | 9.7% | 7.9% | 70.5% | 0.48 |
+| Rush+rec yds | 434 | 7.6% | 7.4% | 74.4% | 0.46 |
+| Rec yds | 1,260 | 5.9% | 7.5% | 76.8% | 0.50 |
+| Receptions | 1,260 | 3.9% | 4.0% | 83.7% | 0.50 |
+
+Before the early-exit mixture and environment shock, 15% of QB/RB yardage outcomes fell below the simulated 5th
+percentile and 3-leg tickets were over-predicted by 4 pp (all weeks: 28.8% predicted, 25.1% hit).
+
+**Game level:** margin 80% coverage 79–80%, total 72–75% (simulated total SD 14.5 vs 16.0 real — still slightly
+narrow). Anchor error vs the line: 0.65 pt margin, 0.55 pt total (sampling noise). Projected starters appeared:
+QB1 91%, RB1 94%, WR1 96%, WR2 93%, TE1 80%; tickets with a non-appearing player are void (9% of 3-leg, 25% of
+5-leg, 33% of 8-leg).
+
+**Walk-forward volume factors** (final, applied live): pass yds 0.96, completions 0.98, pass TD 0.90, rush yds 0.91,
+rush TD 0.98, receptions 0.91, rec yds 0.91, rec TD 0.87 — the simulator still gives its eight target slots and four
+rushers slightly more volume than real offences, which spread it to deeper reserves.
 
 ## Using it
 

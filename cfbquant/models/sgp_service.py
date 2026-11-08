@@ -173,14 +173,18 @@ def week_cards(conn, season: int, week: int, n_sims: int = DEFAULT_SIMS, log=pri
         c = {"game_id": int(g["game_id"]), "start": g["start_date"], "home": sims.team_names[0],
              "away": sims.team_names[1], "meta": meta, **card}
         cards.append(c)
+        log(f"  {c['away']} @ {c['home']}: " + ", ".join(f"{k}-leg x{len(v)}" for k, v in card["tickets"].items())
+            + ("" if meta["anchored"] else "  [NO LINE: unanchored, not logged]"))
+        # ledger: only market-anchored games, and a re-run supersedes that game's still-open tickets
+        conn.execute("DELETE FROM sgp_tickets WHERE game_id=? AND status='open'", (int(g["game_id"]),))
+        if not meta["anchored"]:
+            continue
         for size, tickets in card["tickets"].items():
             for t in tickets:
                 conn.execute("""INSERT INTO sgp_tickets (game_id, created_at, model_version, n_legs, legs_json, p_joint,
                     p_indep, fair_american, status) VALUES (?,?,?,?,?,?,?,?, 'open')""",
                              (int(g["game_id"]), now, MODEL_VERSION, int(size), json.dumps(t["legs"]), t["p_joint"],
                               t["p_indep"], t["fair_american"]))
-        log(f"  {c['away']} @ {c['home']}: " + ", ".join(f"{k}-leg x{len(v)}" for k, v in card["tickets"].items())
-            + ("" if meta["anchored"] else "  [NO LINE: unanchored]"))
     conn.commit()
     out = DATA_DIR / "cards"
     out.mkdir(parents=True, exist_ok=True)

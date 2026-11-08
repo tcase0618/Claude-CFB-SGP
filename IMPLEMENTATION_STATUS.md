@@ -2,7 +2,28 @@
 
 _Last updated: 2026-11-08. All numbers below come from runs in this repository, not estimates._
 
-## Real-data results (ESPN, keyless) — read this first
+## Props & same-game parlays (current focus) — `docs/SGP.md`
+The simulator is now used where it has an edge: **joint distributions for player props and SGPs**, anchored to the
+DraftKings spread/total so it never fights the line on the mean. Walk-forward on real 2026 games (weeks 3–10, 496
+games, 2,196 tickets; correlation shrinkage fitted on weeks 3–6 and scored on 7–10):
+
+| Size | Hit rate (OOS) | Model | Independence | Log loss model / indep |
+|---|---|---|---|---|
+| 3-leg | 22.9% ± 2.1 | 24.2% | 14.1% | 0.535 / 0.566 |
+| 5-leg | 18.4% ± 2.1 | 18.0% | 11.4% | 0.477 / 0.498 |
+| 8-leg | 13.1% ± 2.1 | 11.8% | 7.8% | 0.388 / 0.411 |
+
+* Correlated tickets hit ~1.6× their independence price; the model prices that within sampling error. Team legs are
+  calibrated within ~2 pp; alt-line player overs are still ~8 pp overconfident (residual low tail).
+* What made the difference, in order: one-leg-per-player and realistic lines (removed tautological "lift"),
+  garbage-time substitution, recency-weighted starters (QB1 appearance 79% → 91%), fitted 4th-down policy and pace,
+  an early-exit mixture for starters, a shared game-environment shock, and walk-forward volume calibration.
+* Not available from free data: book prop/SGP prices (ESPN has no CFB props), injuries. Output is a fair price;
+  `cli sgp price --odds` gives EV against a book quote. Opening + current lines are now snapshotted (`cli lines`).
+* Full-game accuracy after the engine changes (2026, 681 games): simulator log loss 0.523 (was 0.521), margin MAE 14.9,
+  total MAE 12.7 — unchanged within noise; the sportsbook line (0.435) remains the bar for sides.
+
+## Real-data results (ESPN, keyless)
 Real data now comes from ESPN's public feeds, so no key is needed: 2,534 completed games (2024 through 2026 week 10),
 452k plays, 860k player-role events, rosters, and DraftKings lines. Final scores reconstruct from play-level points within
 2 points in 98.3% of games. The 2024 team rankings come out plausibly: Notre Dame, Ohio State, Texas, Penn State and Oregon top net EPA.
@@ -125,7 +146,7 @@ calibration check, **not** evidence of real-world accuracy. Expect worse numbers
 ## Known limitations & recommended next steps (priority order)
 1. **Run real ingestion** with a CFBD key; review normaliser mappings against live payloads (play types, stat types, drive results).
 2. Ingest FCS opponents (division='fcs') so opponent adjustment covers FBS-vs-FCS games.
-3. Propagate parameter uncertainty (draw team/player parameters from their posterior per simulation lane) to fix player-interval under-coverage.
+3. ~~Propagate parameter uncertainty~~ — done for props/SGP (per-lane team/pace/usage draws, early-exit mixture); next: model the target/rush tail (WR5+/RB3+) explicitly instead of via the volume calibrator, and capture book SGP prices to measure realised EV.
 4. Coaching data + scheme-transition effects; conference championship / bowl handling (neutral sites are supported).
 5. Hyperparameter search over ridge λ / recency decay using the backtest; AutoGluon benchmark offline.
 6. Charting feed integration for the 202 metrics currently flagged unavailable.

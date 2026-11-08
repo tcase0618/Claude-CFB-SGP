@@ -51,7 +51,7 @@ async function boot() {
     b.innerHTML = `<b>SYNTHETIC DEMONSTRATION DATA.</b> All schools, players and results are fictional, generated to exercise the full pipeline. ` +
       `No real college football data is shown. Set <code>CFBD_API_KEY</code> and run <code>python -m cfbquant.cli ingest</code> to load licensed real data.`;
   } else { $('#status-text').textContent = 'DATA: ' + (m.sources.map(s => s.source_id.toUpperCase()).join(', ') || '—'); }
-  const prod = m.models.find(x => x.status === 'production' && x.family !== 'expected_points' && x.family !== 'sim_calibrator');
+  const prod = m.models.find(x => x.status === 'production' && !['expected_points', 'sim_calibrator', 'prop_calibrator'].includes(x.family));
   $('#status-sub').textContent = `Refreshed ${(m.sources[0]?.last_refreshed || '').replace('T', ' ').slice(0, 16)} · prod model: ${prod ? prod.model_version : 'n/a'}`;
   $('#foot-left').textContent = `${m.counts.games} games · ${m.counts.plays.toLocaleString()} plays · ${m.counts.players.toLocaleString()} players`;
   await loadTeams();
@@ -594,7 +594,7 @@ async function sgpView(app, h) {
       <td class="n">${spr(g.spread_home)}</td><td class="n">${f(g.over_under, 1)}</td></tr>`).join('')}</table></div>
     <div class="note">Lines: DraftKings via ESPN. Games without a posted line are simulated unanchored. Refresh with <code>cli lines --season ${sl.season}</code>.</div>`;
   if (!gid) { app.innerHTML = panel('SGP Lab', '<div class="sub">No upcoming games.</div>'); return; }
-  app.innerHTML = `<div class="grid" style="grid-template-columns:300px 1fr 340px;gap:10px"><div>${panel(`Slate — week ${sl.week}`, slate)}</div><div id="sgp-main"><div class="loading">Simulating game (market-anchored, 6,000 sims)…</div></div><div id="sgp-side"></div></div>`;
+  app.innerHTML = `<div class="grid" style="grid-template-columns:300px 1fr 340px;gap:10px"><div>${panel(`Slate — week ${sl.week}`, slate)}</div><div id="sgp-main"><div class="loading">Simulating game (market-anchored, 6,000 sims)…</div></div><div><div id="sgp-side"></div><div id="sgp-val"></div></div></div>`;
   let c;
   try { c = await api(`/api/sgp/card/${gid}`); } catch (e) { $('#sgp-main').innerHTML = err(e); return; }
   S.sgpCard = c;
@@ -638,7 +638,7 @@ function slipRender() {
   const lab = l => l.kind === 'player' ? `${l.name} ${l.op === 'over' ? 'O' : 'U'} ${l.line} ${(S.sgpCard.props.find(p => p.stat === l.stat) || {}).market || l.stat}`
     : l.kind === 'ml' ? `${l.name} ML` : l.kind === 'spread' ? `${l.name} ${l.line > 0 ? '+' : ''}${l.line}` : `Game ${l.op} ${l.line}`;
   box.innerHTML = panel(`Bet slip (${S.slip.length} legs)`, `${S.slip.length ? `<table>${S.slip.map((l, i) => `<tr><td>${E(lab(l))}</td><td><a class="chip rmleg" data-i="${i}">×</a></td></tr>`).join('')}</table>` : '<div class="sub">Add legs from the prop board.</div>'}
-    <div class="row" style="margin-top:6px"><label class="sub">Book odds <input id="bko" placeholder="+600" style="width:70px"></label> <a class="chip on" id="prc">Price</a> <a class="chip" id="clr">Clear</a></div><div id="prc-out"></div>`) + '<div id="sgp-val"></div>';
+    <div class="row" style="margin-top:6px"><label class="sub">Book odds <input id="bko" placeholder="+600" style="width:70px"></label> <a class="chip on" id="prc">Price</a> <a class="chip" id="clr">Clear</a></div><div id="prc-out"></div>`);
   document.querySelectorAll('.rmleg').forEach(a => a.onclick = () => { S.slip.splice(+a.dataset.i, 1); slipRender(); });
   $('#clr').onclick = () => { S.slip = []; slipRender(); };
   $('#prc').onclick = async () => {
@@ -663,5 +663,5 @@ async function sgpValidation() {
   const by = {}; t.forEach(r => { (by[r.scope] = by[r.scope] || {})[r.metric] = r; });
   box.innerHTML = panel('Walk-forward validation', `<table><tr><th>Size</th><th class="n">n</th><th class="n">Pred</th><th class="n">Hit</th><th class="n">Indep</th></tr>
     ${Object.entries(by).map(([k, r]) => `<tr><td>${E(k.split(':')[1])}-leg</td><td class="n">${r.hit_rate?.n ?? ''}</td><td class="n">${pc(r.pred_joint?.value)}</td><td class="n">${pc(r.hit_rate?.value)} <span class="mut">±${pc(1.645 * (r.hit_rate?.detail_json ? JSON.parse(r.hit_rate.detail_json).se : 0), 0)}</span></td><td class="n mut">${pc(r.pred_indep?.value)}</td></tr>`).join('')}</table>
-    <div class="note">Real 2026 games, parameters estimated before each week, priced on held-out sims. Void tickets (a player leg's player did not appear) excluded.</div>`);
+    <div class="note">Real 2026 games, weeks 3–10, parameters estimated before each week, priced on held-out sims. Pred is before correlation shrinkage (live prices apply α=0.8; out-of-sample table in docs/SGP.md). Void tickets (a player leg's player did not appear) excluded.</div>`);
 }
