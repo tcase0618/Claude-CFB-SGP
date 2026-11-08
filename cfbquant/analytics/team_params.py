@@ -219,6 +219,10 @@ def _estimate(conn, season: int, before_week: int, injuries_week) -> Estimates:
             params[t] = tp_.with_(**usage[t])
     if STRENGTH_K != 1.0:
         params = {t: amplify(tp_, STRENGTH_K) for t, tp_ in params.items()}
+    pace = calibrate_pace(conn, params, season, before_week)
+    if pace["factor"] != 1.0:
+        params = {t: tp_.with_(pace=float(tp_.pace * pace["factor"])) for t, tp_ in params.items()}
+    league_obs["pace_calibration"] = pace
     level = calibrate_level(conn, params, season, before_week)
     if level["shift"] != 0.0:
         params = {t: shift_level(tp_, level["shift"]) for t, tp_ in params.items()}
@@ -246,6 +250,42 @@ def shift_level(tp: TeamParams, l: float) -> TeamParams:
     return tp.with_(comp_off=float(sigmoid(logit(tp.comp_off) + 0.35 * l)), rcore_off=float(tp.rcore_off + 0.5 * l),
                     rexp_off=float(sigmoid(logit(tp.rexp_off) + 0.25 * l)), yac_off=float(tp.yac_off + 0.5 * l),
                     sack_off=float(sigmoid(logit(tp.sack_off) - 0.2 * l)), int_off=float(sigmoid(logit(tp.int_off) - 0.2 * l)))
+
+
+def _recent_games(conn, params, season, before_week, n_games):
+    g = pd.read_sql_query("""SELECT game_id, season, week, home_id, away_id, home_points, away_points, neutral_site FROM games
+        WHERE completed=1 AND ((season=? AND week<?) OR season=?) ORDER BY season DESC, week DESC LIMIT ?""",
+                          conn, params=(season, before_week, season - 1, n_games))
+    return g[g.home_id.isin(params.keys()) & g.away_id.isin(params.keys())].reset_index(drop=True)
+
+
+def calibrate_pace(conn, params: dict, season: int, before_week: int, n_games: int = 80, sims: int = 50) -> dict:
+    """League-wide pace multiplier so simulated scrimmage snaps (passes + rushes + sacks) per team-game match the
+    observed count on recent real games. Applied before the scoring-level calibration, which then restores points."""
+    from ..sim.engine import simulate
+    from ..sim.params import TSTAT, stack_params
+    g = _recent_games(conn, params, season, before_week, n_games)
+    if len(g) < 20:
+        return {"factor": 1.0, "n": int(len(g))}
+    ids = ",".join(str(int(x)) for x in g.game_id)
+    obs = pd.read_sql_query(f"""SELECT game_id, offense_id, SUM(play_type IN ('rush','pass','sack')) AS n FROM plays
+        WHERE game_id IN ({ids}) GROUP BY 1, 2""", conn)
+    if obs.empty:
+        return {"factor": 1.0, "n": 0}
+    target = float(obs.n.mean())
+    neu = np.repeat(g.neutral_site.values.astype(bool), sims)
+
+    def run(f):
+        pairs = [(params[h].with_(pace=params[h].pace * f), params[a].with_(pace=params[a].pace * f))
+                 for h, a in zip(g.home_id, g.away_id)]
+        P = {k: np.repeat(v, sims, axis=0) for k, v in stack_params(pairs).items()}
+        r = simulate(P, LG, 5151 + season + before_week, neutral=neu, track_players=False)
+        ts = r.team_stats
+        return float((ts[..., TSTAT["pass_att"]] + ts[..., TSTAT["rush_att"]] + ts[..., TSTAT["sacks"]]).mean())
+    p0, p1 = run(1.0), run(1.12)
+    slope = (p1 - p0) / 0.12
+    f = float(np.clip(1.0 + (target - p0) / slope, 0.8, 1.35)) if slope < -2 else 1.0
+    return {"factor": f, "target": target, "sim_before": p0, "n": int(len(g))}
 
 
 def calibrate_level(conn, params: dict, season: int, before_week: int, n_games: int = 80, sims: int = 60) -> dict:
@@ -379,6 +419,24 @@ def _usage(conn, season, before_week, injuries_week, plays):
             "pbu", "fga", "xpa", "punts", "rush_yds"]
     wsum = use_pg[cols].multiply(use_pg.w, axis=0).groupby(use_pg.player_id).sum()
     ros = ros.join(wsum, on="player_id").fillna({c: 0 for c in cols})
+    # recency-weighted usage for choosing starters: ESPN has no injury feed, so "who played most recently" is the
+    # best available availability signal. Decay per team-game back: QBs 0.35 (a missed game flips the starter),
+    # everyone else 0.6. Season usage stays in as a small tie-breaker and drives shares.
+    rec_cols = ["pass_att", "rush_att", "targets", "tackles", "xpa", "punts"]
+    if not cur.empty:
+        tg = cur[["team_id", "game_id", "week"]].drop_duplicates().copy()
+        tg["ago"] = tg.groupby("team_id").week.rank(ascending=False, method="dense") - 1
+        c2 = cur.merge(tg[["team_id", "game_id", "ago"]], on=["team_id", "game_id"])
+        c2["w_qb"] = 0.35 ** c2.ago
+        c2["w_ot"] = 0.6 ** c2.ago
+        recent = pd.DataFrame({"r_pass_att": (c2.pass_att * c2.w_qb).groupby(c2.player_id).sum()})
+        for c in rec_cols[1:]:
+            recent[f"r_{c}"] = (c2[c] * c2.w_ot).groupby(c2.player_id).sum()
+        ros = ros.join(recent, on="player_id")
+    for c in rec_cols:
+        if f"r_{c}" not in ros:
+            ros[f"r_{c}"] = 0.0
+    ros[[f"r_{c}" for c in rec_cols]] = ros[[f"r_{c}" for c in rec_cols]].fillna(0.0)
     ros["depth"] = ros.player_id.map(dc).fillna(9)
     ros["out"] = ros.player_id.isin(out_ids)
     # QB value: shrunk EPA per dropback (prior: replacement level)
@@ -410,7 +468,9 @@ def _usage(conn, season, before_week, injuries_week, plays):
                 sm[s] = None
                 continue
             k = score_key.get(cand.position.iloc[0], "tackles")
-            cand = cand.assign(_s=cand[k] - 0.01 * cand.depth, _pp=cand.position.map({p_: i for i, p_ in enumerate(pos)}))
+            rk = f"r_{k}" if f"r_{k}" in cand else None
+            sc_ = (cand[rk] * 10 + 0.1 * cand[k]) if rk is not None and cand[rk].sum() > 0 else cand[k]
+            cand = cand.assign(_s=sc_ - 0.01 * cand.depth, _pp=cand.position.map({p_: i for i, p_ in enumerate(pos)}))
             best = cand.sort_values(["_pp", "_s"], ascending=[True, False]) if s in ("DL1", "DL2", "DL3", "DL4") else \
                 cand.sort_values("_s", ascending=False)
             pid = int(best.player_id.iloc[0])

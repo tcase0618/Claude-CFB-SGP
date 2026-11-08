@@ -75,7 +75,7 @@ async function route() {
   const app = $('#app');
   app.innerHTML = '<div class="loading">Computing…</div>';
   const V = {dashboard, players: playersView, teams: teamsView, matchup: matchupView, predictions: predictionsView,
-             simulations: simulationsView, markets: marketsView, recruiting: recruitingView, transfers: transfersView, audit: auditView}[h.r] || dashboard;
+             simulations: simulationsView, markets: marketsView, sgp: sgpView, recruiting: recruitingView, transfers: transfersView, audit: auditView}[h.r] || dashboard;
   try { await V(app, h); } catch (e) { console.error(e); app.innerHTML = err(e); }
 }
 
@@ -579,3 +579,89 @@ async function auditView(app) {
 }
 
 boot();
+
+/* ------------------------------------------------------------------ SGP Lab: props + same-game parlays */
+const am = v => v == null || !isFinite(v) ? '—' : (v > 0 ? '+' : '') + Math.round(v);
+S.slip = S.slip || [];
+async function sgpView(app, h) {
+  const week = h.q.get('week');
+  const sl = await api(`/api/sgp/slate?${qs({season: S.season, week})}`);
+  const gid = +(h.id || (sl.games.find(g => g.spread_home != null) || sl.games[0] || {}).game_id || 0);
+  const spr = v => v == null ? '—' : (v > 0 ? '+' : '') + v;
+  const slate = `<div class="chips" style="margin-bottom:6px">${sl.weeks.slice(0, 6).map(w => `<a class="chip ${w === sl.week ? 'on' : ''}" href="#/sgp?week=${w}">Wk ${w}</a>`).join('')}</div>
+    <div class="scroll" style="max-height:78vh"><table style="table-layout:fixed;width:100%"><colgroup><col><col style="width:54px"><col style="width:44px"></colgroup><tr><th>Game</th><th class="n">Home</th><th class="n">O/U</th></tr>
+    ${sl.games.map(g => `<tr class="${g.game_id === gid ? 'on' : ''}"><td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><a href="#/sgp/${g.game_id}?week=${sl.week}">${E(g.away)} @ ${E(g.home)}</a><div class="sub">${E((g.start_date || '').replace('T', ' ').slice(5, 16))}${g.open_spread_home == null ? '' : ` · open ${spr(g.open_spread_home)} / ${f(g.open_total, 1)}`}</div></td>
+      <td class="n">${spr(g.spread_home)}</td><td class="n">${f(g.over_under, 1)}</td></tr>`).join('')}</table></div>
+    <div class="note">Lines: DraftKings via ESPN. Games without a posted line are simulated unanchored. Refresh with <code>cli lines --season ${sl.season}</code>.</div>`;
+  if (!gid) { app.innerHTML = panel('SGP Lab', '<div class="sub">No upcoming games.</div>'); return; }
+  app.innerHTML = `<div class="grid" style="grid-template-columns:300px 1fr 340px;gap:10px"><div>${panel(`Slate — week ${sl.week}`, slate)}</div><div id="sgp-main"><div class="loading">Simulating game (market-anchored, 6,000 sims)…</div></div><div id="sgp-side"></div></div>`;
+  let c;
+  try { c = await api(`/api/sgp/card/${gid}`); } catch (e) { $('#sgp-main').innerHTML = err(e); return; }
+  S.sgpCard = c;
+  if (S.slipGame !== gid) { S.slip = []; S.slipGame = gid; }
+  const m = c.meta;
+  const head = `<div class="row between"><div><b>${E(c.away)} @ ${E(c.home)}</b> <span class="sub">${E(m.as_of)} · ${m.n_sims.toLocaleString()} sims · ${tag('predicted')}</span></div>
+    <div class="sub">${m.anchored ? `<span class="pos">ANCHORED</span> to DK ${E(c.home)} ${spr(m.line.spread_home)}, total ${m.line.total}` : '<span class="neg">UNANCHORED — no line posted</span>'}</div></div>
+    <div class="sub" style="margin-top:4px">Sim: ${E(c.home)} ${f(c.game.home_pts, 1)} – ${f(c.game.away_pts, 1)} ${E(c.away)} · P(${E(c.home)} win) ${pc(c.game.home_win)} · margin SD ${f(c.game.margin_sd, 1)} · total SD ${f(c.game.total_sd, 1)}</div>`;
+  const ticket = (t, k) => `<div class="panel" style="padding:8px;margin:6px 0">
+    <div class="row between"><b>${k}-leg</b><span>P <b>${pc(t.p_joint)}</b> <span class="mut">[${pc(t.p_joint_ci90[0], 0)}–${pc(t.p_joint_ci90[1], 0)}]</span> · fair <b>${am(t.fair_american)}</b> · indep ${am(t.indep_american)} · lift <b class="pos">${f(t.lift, 2)}×</b></span></div>
+    <table>${t.legs.map(l => `<tr><td>${E(l.label)}</td><td class="n">${pc(l.p, 0)}</td><td class="n mut">${am(l.fair_american)}</td></tr>`).join('')}</table></div>`;
+  const tickets = Object.entries(c.tickets).map(([k, ts]) => ts.length ? ts.map(t => ticket(t, k)).join('') : `<div class="sub">${k}-leg: no ticket inside the probability band.</div>`).join('');
+  const board = `<input class="search" id="pbs" placeholder="Filter player / market…" style="max-width:240px">
+    <div class="scroll" style="max-height:46vh"><table id="pbt"><tr><th>Player</th><th>Team</th><th>Market</th><th class="n">Line</th><th class="n">P(over)</th><th class="n">Fair O</th><th class="n">Fair U</th><th class="n">p10</th><th class="n">Median</th><th class="n">p90</th><th></th></tr>
+    ${c.props.map((p, i) => `<tr data-n="${E(((p.name || '') + ' ' + p.market + ' ' + p.team).toLowerCase())}"><td>${E(p.name || p.slot)}</td><td class="sub">${E(p.team)}</td><td>${E(p.market)}</td><td class="n"><input class="ln" data-i="${i}" value="${p.line}" style="width:52px"></td>
+      <td class="n">${pc(p.p_over, 0)}</td><td class="n">${am(p.fair_over)}</td><td class="n">${am(p.fair_under)}</td><td class="n mut">${f(p.p10, 0)}</td><td class="n">${f(p.median, 0)}</td><td class="n mut">${f(p.p90, 0)}</td>
+      <td><a class="chip addleg" data-i="${i}" data-op="over">+O</a><a class="chip addleg" data-i="${i}" data-op="under">+U</a></td></tr>`).join('')}</table></div>
+    <div class="row" style="margin-top:6px">Game lines: ${[['ml', 'home', null, 'ML'], ['ml', 'away', null, 'ML']].map(([k, sd]) => `<a class="chip addgl" data-k="${k}" data-s="${sd}">+${E(sd === 'home' ? c.home : c.away)} ML</a>`).join('')}
+      ${m.line.spread_home != null ? `<a class="chip addgl" data-k="spread" data-s="home">+${E(c.home)} ${spr(m.line.spread_home)}</a><a class="chip addgl" data-k="spread" data-s="away">+${E(c.away)} ${spr(-m.line.spread_home)}</a>` : ''}
+      ${m.line.total != null ? `<a class="chip addgl" data-k="total" data-s="over">+Over ${m.line.total}</a><a class="chip addgl" data-k="total" data-s="under">+Under ${m.line.total}</a>` : ''}</div>`;
+  $('#sgp-main').innerHTML = panel('Game', head) + panel('Prop board — main lines', board, 'edit a line to re-price · add legs to the slip') +
+    panel('Auto tickets — most-correlated legs inside each size\'s probability band', tickets,
+      'priced on held-out sims · bet only if the book pays more than fair');
+  $('#pbs').oninput = e => document.querySelectorAll('#pbt tr[data-n]').forEach(r => r.style.display = r.dataset.n.includes(e.target.value.toLowerCase()) ? '' : 'none');
+  document.querySelectorAll('.addleg').forEach(a => a.onclick = () => {
+    const p = c.props[+a.dataset.i]; const ln = +document.querySelector(`.ln[data-i="${a.dataset.i}"]`).value;
+    S.slip.push({kind: 'player', player_id: p.player_id, stat: p.stat, op: a.dataset.op, line: ln, name: p.name}); slipRender();
+  });
+  document.querySelectorAll('.addgl').forEach(a => a.onclick = () => {
+    const k = a.dataset.k, sd = a.dataset.s;
+    const leg = k === 'ml' ? {kind: 'ml', side: sd, name: sd === 'home' ? c.home : c.away}
+      : k === 'spread' ? {kind: 'spread', side: sd, line: sd === 'home' ? m.line.spread_home : -m.line.spread_home, name: sd === 'home' ? c.home : c.away}
+      : {kind: 'total', op: sd, line: m.line.total};
+    S.slip.push(leg); slipRender();
+  });
+  slipRender();
+  sgpValidation();
+}
+function slipRender() {
+  const box = $('#sgp-side'); if (!box) return;
+  const lab = l => l.kind === 'player' ? `${l.name} ${l.op === 'over' ? 'O' : 'U'} ${l.line} ${(S.sgpCard.props.find(p => p.stat === l.stat) || {}).market || l.stat}`
+    : l.kind === 'ml' ? `${l.name} ML` : l.kind === 'spread' ? `${l.name} ${l.line > 0 ? '+' : ''}${l.line}` : `Game ${l.op} ${l.line}`;
+  box.innerHTML = panel(`Bet slip (${S.slip.length} legs)`, `${S.slip.length ? `<table>${S.slip.map((l, i) => `<tr><td>${E(lab(l))}</td><td><a class="chip rmleg" data-i="${i}">×</a></td></tr>`).join('')}</table>` : '<div class="sub">Add legs from the prop board.</div>'}
+    <div class="row" style="margin-top:6px"><label class="sub">Book odds <input id="bko" placeholder="+600" style="width:70px"></label> <a class="chip on" id="prc">Price</a> <a class="chip" id="clr">Clear</a></div><div id="prc-out"></div>`) + '<div id="sgp-val"></div>';
+  document.querySelectorAll('.rmleg').forEach(a => a.onclick = () => { S.slip.splice(+a.dataset.i, 1); slipRender(); });
+  $('#clr').onclick = () => { S.slip = []; slipRender(); };
+  $('#prc').onclick = async () => {
+    if (!S.slip.length) return;
+    const bo = $('#bko').value.trim(); const body = {game_id: S.slipGame, legs: S.slip, book_american: bo ? +bo : null};
+    $('#prc-out').innerHTML = '<div class="loading">Pricing…</div>';
+    const r = await fetch('/api/sgp/price', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+    if (!r.ok) { $('#prc-out').innerHTML = err(new Error(await r.text())); return; }
+    const t = await r.json();
+    $('#prc-out').innerHTML = `<table style="margin-top:6px"><tr><td>Joint P</td><td class="n"><b>${pc(t.p_joint)}</b> <span class="mut">[${pc(t.p_joint_ci90[0])}–${pc(t.p_joint_ci90[1])}]</span></td></tr>
+      <tr><td>Fair odds</td><td class="n"><b>${am(t.fair_american)}</b></td></tr><tr><td>If independent</td><td class="n">${pc(t.p_indep)} · ${am(t.indep_american)}</td></tr>
+      <tr><td>Correlation lift</td><td class="n">${f(t.lift, 2)}×</td></tr>
+      ${t.book_american != null ? `<tr><td>Book implied</td><td class="n">${pc(t.book_implied)}</td></tr><tr><td>EV / unit</td><td class="n ${cls(t.ev_per_unit)}"><b>${fs(t.ev_per_unit, 3)}</b></td></tr><tr><td>¼ Kelly stake</td><td class="n">${pc(t.quarter_kelly, 2)} of bankroll</td></tr>` : ''}</table>
+      ${t.legs.map(l => `<div class="sub">${E(l.label)}: ${pc(l.p, 1)}</div>`).join('')}
+      <div class="note">Model price ${tag('predicted')}. Includes parameter uncertainty; excludes injury news after the line was captured.</div>`;
+  };
+}
+async function sgpValidation() {
+  let v; try { v = await api('/api/sgp/validation'); } catch (e) { return; }
+  const box = $('#sgp-val'); if (!box || !v.rows.length) return;
+  const t = v.rows.filter(r => r.scope.startsWith('tickets:'));
+  const by = {}; t.forEach(r => { (by[r.scope] = by[r.scope] || {})[r.metric] = r; });
+  box.innerHTML = panel('Walk-forward validation', `<table><tr><th>Size</th><th class="n">n</th><th class="n">Pred</th><th class="n">Hit</th><th class="n">Indep</th></tr>
+    ${Object.entries(by).map(([k, r]) => `<tr><td>${E(k.split(':')[1])}-leg</td><td class="n">${r.hit_rate?.n ?? ''}</td><td class="n">${pc(r.pred_joint?.value)}</td><td class="n">${pc(r.hit_rate?.value)} <span class="mut">±${pc(1.645 * (r.hit_rate?.detail_json ? JSON.parse(r.hit_rate.detail_json).se : 0), 0)}</span></td><td class="n mut">${pc(r.pred_indep?.value)}</td></tr>`).join('')}</table>
+    <div class="note">Real 2026 games, parameters estimated before each week, priced on held-out sims. Void tickets (a player leg's player did not appear) excluded.</div>`);
+}

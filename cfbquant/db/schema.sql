@@ -346,3 +346,21 @@ CREATE TABLE IF NOT EXISTS betting_lines (
     home_moneyline REAL, away_moneyline REAL, fetched_at TEXT, source TEXT NOT NULL,
     PRIMARY KEY (game_id, provider)
 );
+
+-- Every line observation, append-only, so line movement and closing-line value can be measured later.
+-- ESPN core odds carry the opening and current DraftKings numbers; each `cli lines` run appends one row per game.
+CREATE TABLE IF NOT EXISTS line_snapshots (
+    game_id INTEGER NOT NULL, provider TEXT NOT NULL, fetched_at TEXT NOT NULL,
+    spread_home REAL, over_under REAL, home_moneyline REAL, away_moneyline REAL,
+    home_spread_odds REAL, away_spread_odds REAL, over_odds REAL, under_odds REAL,
+    open_spread_home REAL, open_total REAL, open_home_moneyline REAL, open_away_moneyline REAL,
+    source TEXT NOT NULL,
+    PRIMARY KEY (game_id, provider, fetched_at)
+);
+
+-- Tickets the SGP builder produced (paper-trading ledger). Book odds are entered by the user when known.
+CREATE TABLE IF NOT EXISTS sgp_tickets (
+    ticket_id INTEGER PRIMARY KEY AUTOINCREMENT, game_id INTEGER, created_at TEXT, model_version TEXT,
+    n_legs INTEGER, legs_json TEXT, p_joint REAL, p_indep REAL, fair_american REAL,
+    book_american REAL, stake REAL, status TEXT DEFAULT 'open', result REAL, settled_at TEXT, note TEXT
+);

@@ -69,6 +69,14 @@ def main(argv=None):
     s = sub.add_parser("markets"); s.add_argument("action", choices=["live", "close", "calibration"])
     s.add_argument("--since", default=None); s.add_argument("--until", default=None); s.add_argument("--limit", type=int, default=None)
     s.add_argument("--days", type=int, default=8)
+    s = sub.add_parser("lines", help="snapshot opening + current DraftKings lines for upcoming games (ESPN)")
+    s.add_argument("--season", type=int, required=True); s.add_argument("--week", type=int, default=None)
+    s = sub.add_parser("sgp", help="prop / same-game-parlay engine")
+    s.add_argument("action", choices=["cards", "price", "settle", "board"])
+    s.add_argument("--season", type=int); s.add_argument("--week", type=int); s.add_argument("--game", type=int)
+    s.add_argument("--legs", help="JSON file with a list of legs (see cfbquant/models/sgp.py Leg)")
+    s.add_argument("--odds", type=float, default=None, help="book American odds for the parlay")
+    s.add_argument("--sims", type=int, default=None)
     s = sub.add_parser("serve"); s.add_argument("--port", type=int, default=8000); s.add_argument("--host", default="127.0.0.1")
     a = ap.parse_args(argv)
     st = get_settings()
@@ -100,6 +108,32 @@ def main(argv=None):
         from .ingest.espn import ESPNClient, ingest_espn
         with open_db(db) as conn:
             ingest_espn(conn, ESPNClient(), _seasons(a.seasons), workers=a.workers)
+        return
+    if a.cmd == "lines":
+        from .ingest.espn import ESPNClient, snapshot_lines
+        with open_db(db) as conn:
+            snapshot_lines(conn, ESPNClient(), a.season, a.week)
+        return
+    if a.cmd == "sgp":
+        from .models import sgp_service as svc
+        n = a.sims or svc.DEFAULT_SIMS
+        with open_db(db) as conn:
+            if a.action == "cards":
+                print(json.dumps(svc.week_cards(conn, a.season, a.week, n_sims=n)))
+            elif a.action == "settle":
+                print(json.dumps(svc.settle_tickets(conn)))
+            elif a.action == "board":
+                c = svc.game_card(conn, a.game, n_sims=n)
+                print(pd.DataFrame(c["props"])[["name", "team", "market", "line", "p_over", "fair_over", "fair_under",
+                                                "p10", "median", "p90"]].round(2).to_string(index=False))
+                for k, ts in c["tickets"].items():
+                    for t in ts:
+                        print(f"\n{k}-leg  p={t['p_joint']:.3f}  fair {t['fair_american']:+.0f}  (indep {t['indep_american']:+.0f}, lift {t['lift']:.2f})")
+                        for l in t["legs"]:
+                            print(f"   {l['label']:<45} p={l['p']:.2f}")
+            else:
+                legs = json.load(open(a.legs))
+                print(json.dumps(svc.price_legs(conn, a.game, legs, a.odds, n_sims=n), indent=1, default=float))
         return
     if a.cmd == "recruiting":
         from .ingest.cfbd import CFBDClient

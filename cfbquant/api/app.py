@@ -559,6 +559,74 @@ def market_calibration():
             "note": "Outcomes from Polymarket settlement. Games where Polymarket's own score feed disagrees with its settlement are counted in score_conflicts."})
 
 
+# ------------------------------------------------------------------ props / same-game parlays
+from pydantic import BaseModel  # noqa: E402
+
+
+class PriceRequest(BaseModel):
+    game_id: int
+    legs: list[dict]
+    book_american: float | None = None
+    sims: int | None = None
+
+
+@app.get("/api/sgp/slate")
+def sgp_slate(season: int | None = None, week: int | None = None):
+    """Upcoming games with their DraftKings line (anchor) and opening number, for the SGP Lab slate."""
+    season, _ = latest(season)
+    if week is None:
+        r = conn().execute("SELECT MIN(week) FROM games WHERE season=? AND completed=0", (season,)).fetchone()
+        week = r[0]
+    g = q("""SELECT g.game_id, g.week, g.start_date, g.home_id, g.away_id, th.school AS home, ta.school AS away,
+               b.spread_home, b.over_under, b.fetched_at AS line_fetched_at,
+               (SELECT open_spread_home FROM line_snapshots s WHERE s.game_id=g.game_id ORDER BY fetched_at LIMIT 1) AS open_spread_home,
+               (SELECT open_total FROM line_snapshots s WHERE s.game_id=g.game_id ORDER BY fetched_at LIMIT 1) AS open_total
+        FROM games g JOIN teams th ON th.team_id=g.home_id JOIN teams ta ON ta.team_id=g.away_id
+        LEFT JOIN betting_lines b ON b.game_id=g.game_id AND b.provider='DraftKings'
+        WHERE g.season=? AND g.week=? AND g.completed=0 ORDER BY (b.spread_home IS NULL), g.start_date""", (season, week))
+    weeks = [r[0] for r in conn().execute("SELECT DISTINCT week FROM games WHERE season=? AND completed=0 ORDER BY 1", (season,))]
+    return {"season": season, "week": week, "weeks": weeks, "games": records(g)}
+
+
+@app.get("/api/sgp/card/{game_id}")
+def sgp_card(game_id: int, sims: int = 6000):
+    from ..models.sgp_service import game_card
+    sims = int(min(max(sims, 1000), 20000))
+    try:
+        with _lock:
+            return clean(game_card(conn(), game_id, n_sims=sims))
+    except KeyError as e:
+        raise HTTPException(404, str(e))
+
+
+@app.post("/api/sgp/price")
+def sgp_price(req: PriceRequest):
+    from ..models.sgp_service import DEFAULT_SIMS, price_legs
+    if not req.legs:
+        raise HTTPException(400, "no legs")
+    try:
+        with _lock:
+            return clean(price_legs(conn(), req.game_id, req.legs, req.book_american, n_sims=req.sims or DEFAULT_SIMS))
+    except (KeyError, ValueError) as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/sgp/validation")
+def sgp_validation():
+    v = q("SELECT scope, metric, value, ci_low, ci_high, n, detail_json FROM model_validation WHERE model_version='sgp_v1' ORDER BY scope, metric")
+    return {"rows": records(v)}
+
+
+@app.get("/api/sgp/ledger")
+def sgp_ledger(limit: int = 200):
+    t = q("""SELECT t.*, th.school AS home, ta.school AS away FROM sgp_tickets t JOIN games g ON g.game_id=t.game_id
+             JOIN teams th ON th.team_id=g.home_id JOIN teams ta ON ta.team_id=g.away_id ORDER BY ticket_id DESC LIMIT ?""", (limit,))
+    summ = q("""SELECT n_legs, COUNT(*) n, SUM(status='won') won, SUM(status='lost') lost, SUM(status='void') void,
+                SUM(status='open') open, AVG(CASE WHEN status IN ('won','lost') THEN p_joint END) pred,
+                AVG(CASE WHEN status IN ('won','lost') THEN result END) actual FROM sgp_tickets GROUP BY n_legs""")
+    return {"tickets": records(t), "summary": records(summ)}
+
+
 # ------------------------------------------------------------------ static UI
 WEB = ROOT / "web"
 if WEB.exists():

@@ -365,6 +365,60 @@ def parse_lines(summary: dict, game_id: int) -> list[dict]:
     return out
 
 
+def _num(x):
+    try:
+        return float(str(x).replace("+", "")) if x not in (None, "", "OFF", "EVEN") else (100.0 if x == "EVEN" else None)
+    except (TypeError, ValueError):
+        return None
+
+
+def parse_core_odds(item: dict, game_id: int, fetched_at: str) -> dict:
+    """One provider entry from the core-API odds collection -> a line_snapshots row (current + opening numbers)."""
+    h, a = item.get("homeTeamOdds") or {}, item.get("awayTeamOdds") or {}
+    ho, ao, op = h.get("open") or {}, a.get("open") or {}, item.get("open") or {}
+    g = lambda d, *ks: _num(_dig(d, *ks))
+    return dict(game_id=game_id, provider=(item.get("provider") or {}).get("name"), fetched_at=fetched_at,
+                spread_home=_num(item.get("spread")), over_under=_num(item.get("overUnder")),
+                home_moneyline=_num(h.get("moneyLine")), away_moneyline=_num(a.get("moneyLine")),
+                home_spread_odds=_num(h.get("spreadOdds")), away_spread_odds=_num(a.get("spreadOdds")),
+                over_odds=_num(item.get("overOdds")), under_odds=_num(item.get("underOdds")),
+                open_spread_home=g(ho, "pointSpread", "american"), open_total=g(op, "total", "american"),
+                open_home_moneyline=g(ho, "moneyLine", "american"), open_away_moneyline=g(ao, "moneyLine", "american"),
+                source=SOURCE)
+
+
+def _dig(d, *ks):
+    for k in ks:
+        if not isinstance(d, dict):
+            return None
+        d = d.get(k)
+    return d
+
+
+def snapshot_lines(conn, client: "ESPNClient", season: int, week: int | None = None, log=print) -> int:
+    """Append current + opening lines for upcoming games (all not-yet-completed games of `week`, or of the season)
+    to line_snapshots, and refresh betting_lines with the current number (which the SGP anchor reads)."""
+    q = "SELECT game_id FROM games WHERE season=? AND completed=0" + (" AND week=?" if week is not None else "")
+    ids = [r[0] for r in conn.execute(q, (season,) + ((week,) if week is not None else ()))]
+    now = utcnow()
+    rows = []
+    for gid in ids:
+        d = client.get(f"{CORE}/events/{gid}/competitions/{gid}/odds")
+        for it in (d or {}).get("items", []) or []:
+            r = parse_core_odds(it, gid, now)
+            if r["provider"] and (r["spread_home"] is not None or r["over_under"] is not None):
+                rows.append(r)
+    if rows:
+        df = pd.DataFrame(rows)
+        insert_df(conn, "line_snapshots", df)
+        cur = df[["game_id", "provider", "spread_home", "over_under", "home_moneyline", "away_moneyline"]].assign(
+            fetched_at=now, source=SOURCE)
+        insert_df(conn, "betting_lines", cur)
+        conn.commit()
+    log(f"lines: {len(ids)} upcoming games, {len(rows)} provider lines snapshotted at {now}")
+    return len(rows)
+
+
 # ----------------------------------------------------------------------------- orchestration
 def _conferences(client, season) -> tuple[list[dict], dict[int, str]]:
     d = client.standings(season) or {}

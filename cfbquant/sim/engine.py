@@ -46,6 +46,12 @@ LOG_COLS = ["lane", "step", "offense", "period", "clock", "down", "distance", "y
             "pat_result", "scramble"]
 
 
+# starter -> backup substitution used in garbage time
+BENCH_MAP = np.arange(N_SLOTS)
+for _a, _b in (("QB1", "QB2"), ("RB1", "RB2"), ("WR1", "WR3"), ("WR2", "WR4"), ("TE1", "TE2")):
+    BENCH_MAP[SLOT[_a]] = SLOT[_b]
+
+
 @dataclass
 class SimResult:
     home_pts: np.ndarray
@@ -223,14 +229,18 @@ def simulate(P: dict[str, np.ndarray], league: League, seed: int, *,
             f = np.flatnonzero(fourth)
             fg_dist = y0[f] + 17
             in_range = fg_dist <= 55 + 2 * P["fg_skill"][S[f], off[f]]
-            gs = (P["go_aggr"][S[f], off[f]] + 1.6 - 0.55 * di0[f] + 0.025 * (60 - y0[f]))
+            # go-for-it log-odds fitted on 2024-25 FBS 4th downs (excluding trailing in the 4th; logistic regression)
+            dc = np.minimum(di0[f], 15).astype(float)
+            rf = in_range.astype(float)
+            gs = (P["go_aggr"][S[f], off[f]] + 4.475 + 0.237 * dc - 3.843 * np.log1p(dc) + 0.251 * rf
+                  - 0.017 * rf * dc - 0.13 * np.maximum(y0[f] - 50, 0))
             trailing_late = late[f] & (diff[f] < 0)
             gs = gs + np.where(trailing_late & (diff[f] < -3), 6.0, 0.0)
             gs = gs + np.where(late[f] & (diff[f] < 0) & (diff[f] >= -3) & in_range, -4.0, 0.0)
             in_ot = ot[S[f]]
             # OT: no punts; second possession trailing by >3 must go
             ot_must_go = in_ot & ((~in_range) | ((ot_count[S[f]] == 1) & (diff[f] < -3)))
-            go = (rng.random(len(f)) < sigmoid(1.5 * gs)) | ot_must_go
+            go = (rng.random(len(f)) < sigmoid(gs)) | ot_must_go
             go = go & ~(in_ot & in_range & (di0[f] > 3) & ~ot_must_go)
             kick_fg = ~go & in_range
             punt = ~go & ~in_range
@@ -339,7 +349,7 @@ def simulate(P: dict[str, np.ndarray], league: League, seed: int, *,
             passer[sk] = SLOT["QB1"]
             yards[sk] = -np.round(3 + rng.gamma(2.0, 2.5, len(sk))).astype(np.int64)
             sacker[sk] = np.array(DEF_IDX)[_cat(rng, cum["sack_share"][S[sk], de[sk]])]
-            fum[sk] = rng.random(len(sk)) < 0.08
+            fum[sk] = rng.random(len(sk)) < 0.03          # lost strip-sacks (~1-4% of sacks in FBS play-by-play)
             tclock[sk] = pace[sk] * rng.uniform(0.85, 1.15, len(sk))
         # -- kneels --
         kn = np.flatnonzero(ptype == PT["kneel"])
@@ -424,6 +434,16 @@ def simulate(P: dict[str, np.ndarray], league: League, seed: int, *,
         rz_new = (y0 <= 20) & ~in_rz[S] & is_play & ~ot[S]
         in_rz[S[rz_new]] = True
         tadd(sc[rz_new], off[rz_new], "rz_trips")
+
+        # garbage time: starters sit in blowouts, so their volume goes to the backups (attribution only; team-level
+        # efficiency is unchanged). Thresholds follow common garbage-time definitions, slightly stricter.
+        if pstats is not None:
+            absd = np.abs(diff)
+            bench = (~ot[S]) & (((q == 2) & (absd >= 45)) | ((q == 3) & (absd >= 35)) | ((q >= 4) & (absd >= 24)))
+            if bench.any():
+                for arr in (passer, rusher, target):
+                    b = bench & (arr >= 0)
+                    arr[b] = BENCH_MAP[arr[b]]
 
         # player counting stats (all from the same events)
         if pstats is not None:

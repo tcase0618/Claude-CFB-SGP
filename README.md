@@ -46,6 +46,21 @@ Responses are cached on disk (`data/cache/cfbd`), requests are rate-limited, and
 The real-data path is implemented and unit-tested against CFBD-shaped fixtures but has **not** been run against the
 live API in this environment (no key was available) — see `IMPLEMENTATION_STATUS.md`.
 
+## Player props & same-game parlays (the focus)
+
+```bash
+export CFBQ_DB=data/cfb.db
+python -m cfbquant.cli lines --season 2026                 # snapshot opening + current DraftKings lines (run daily)
+python -m cfbquant.cli sgp board --game <espn_game_id>     # prop board + best 3/5/8-leg tickets for one game
+python -m cfbquant.cli sgp cards --season 2026 --week 11   # whole slate -> data/cards/ + paper-trading ledger
+python -m cfbquant.cli sgp price --game <id> --legs slip.json --odds +600   # EV of a book SGP
+python scripts/validate_sgp.py --season 2026 --weeks 3-10  # walk-forward validation (~16 min)
+```
+
+The simulation is anchored to the market's spread and total, adds parameter uncertainty and garbage-time
+substitution, and prices any combination of legs from one consistent joint simulation. The **SGP Lab** tab has the
+board, a bet slip with EV vs the book price, and auto tickets. Method, validation and limits: `docs/SGP.md`.
+
 ## Market data (Polymarket US — free, no key)
 
 ```bash
@@ -60,7 +75,7 @@ closing-line benchmark when the model DB holds real CFBD games. See `docs/MARKET
 
 ```bash
 python -m cfbquant.cli forecast --home 1003 --away 1001 --season 2025 --week 12 --sims 10000
-python -m pytest -q                              # 43 tests
+python -m pytest -q                              # 55 tests
 python scripts/gen_metrics_doc.py                # regenerate docs/METRICS.md from the registry
 ```
 
@@ -69,5 +84,6 @@ python scripts/gen_metrics_doc.py                # regenerate docs/METRICS.md fr
 * `docs/ARCHITECTURE.md` — data model, pipeline, models, simulator, validation, API
 * `docs/METRICS.md` — every metric: formula, direction, classification (generated)
 * `docs/DATA_SOURCES.md` — ESPN (keyless), Polymarket US, CFBD; what each provides and its caveats
+* `docs/SGP.md` — props / same-game parlays: anchoring, uncertainty, ticket builder, validation, limits
 * `docs/MARKETS.md` — Polymarket US integration: endpoints, verified contract semantics, data-quality findings
 * `IMPLEMENTATION_STATUS.md` — what is done, what is not, verification results, blockers
