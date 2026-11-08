@@ -23,7 +23,8 @@ from ..config import DATA_DIR
 from ..db import utcnow
 from ..sim.params import League, stack_params
 from .props import Uncertainty, anchored_simulate, line_targets
-from .sgp import (SLOT_MARKETS, STAT_LABEL, GameSims, Leg, _line_for_prob, build_card, price, prob_to_american)
+from .sgp import (SLOT_MARKETS, STAT_LABEL, GameSims, Leg, _line_for_prob, build_card, candidate_legs, price, split_lanes,
+                  prob_to_american)
 
 MODEL_VERSION = "sgp_v1"
 DEFAULT_SIMS = 6000
@@ -55,9 +56,47 @@ def _names(conn) -> dict:
     return pd.read_sql_query("SELECT team_id, school FROM teams", conn).set_index("team_id").school.to_dict()
 
 
+EXCLUDE_FLAGS = {"missed_last", "missed_2of3"}     # 62-64% appearance walk-forward -> keep off auto tickets
+WARN_FLAGS = {"left_early"}                       # 81% appearance -> warn only
+
+
+def _availability(conn, season, week, g, slots, names_by_pid, outs) -> dict:
+    """Availability block for a card: who was removed (official report / ESPN / manual) and doubts on starters."""
+    from ..ingest.availability import availability_for
+    removed = pd.read_sql_query("""SELECT a.player_id, p.first_name || ' ' || p.last_name AS name, a.team_id, a.status,
+        a.reason, a.evidence, a.source FROM availability a LEFT JOIN players p ON p.player_id=a.player_id
+        WHERE a.season=? AND a.week=? AND a.team_id IN (?,?) AND a.status IN ('OUT','DOUBTFUL')""",
+                                conn, params=(season, week, int(g["home_id"]), int(g["away_id"])))
+    pids = [int(p) for s in slots for k, p in s.items() if p is not None and k[:2] in ("QB", "RB", "WR", "TE")]
+    av = availability_for(conn, season, week, pids)
+    starters, exclude = [], set()
+    for side, s in enumerate(slots):
+        for k, p in s.items():
+            if p is None or k[:2] not in ("QB", "RB", "WR", "TE"):
+                continue
+            items = av.get(int(p), [])
+            flags = [i["reason"] for i in items if i["status"] == "FLAG"]
+            status = next((i["status"] for i in items if i["status"] in ("QUESTIONABLE", "PROBABLE")), None)
+            level = "exclude" if (set(flags) & EXCLUDE_FLAGS or status == "QUESTIONABLE") else \
+                ("warn" if set(flags) & WARN_FLAGS else "ok")
+            if level == "exclude":
+                exclude.add(int(p))
+            starters.append({"player_id": int(p), "name": names_by_pid.get(int(p)), "side": "home" if side == 0 else "away",
+                             "slot": k, "status": status, "flags": flags, "evidence": [i["evidence"] for i in items],
+                             "level": level})
+    return {"removed": removed.to_dict("records"), "manual_out": sorted(outs), "starters": starters,
+            "exclude": sorted(exclude),
+            "note": "No open CFB injury feed: removals come from imported official reports, ESPN roster removal "
+                    "(only when the player also missed his team's last game) and manual OUT marks. Verify before betting."}
+
+
 def simulate_games(conn, games: list[dict], n_sims: int = DEFAULT_SIMS, seed: int = 31, chunk: int = 8,
-                   unc: Uncertainty | None = None) -> list[tuple[dict, GameSims, dict]]:
-    """Anchored, uncertainty-aware simulation for a list of games from the same season/week (chunked for memory)."""
+                   unc: Uncertainty | None = None, outs: set | frozenset = frozenset()) -> list[tuple[dict, GameSims, dict]]:
+    """Anchored, uncertainty-aware simulation for a list of games from the same season/week (chunked for memory).
+
+    `outs`: extra player ids to treat as OUT (manual marks); their slot passes to the next man and a QB change moves
+    the team's passing efficiency (forecast.apply_scenario)."""
+    from .forecast import apply_scenario
     if not games:
         return []
     season, week = int(games[0]["season"]), int(games[0]["week"])
@@ -71,7 +110,16 @@ def simulate_games(conn, games: list[dict], n_sims: int = DEFAULT_SIMS, seed: in
     for c0 in range(0, len(games), chunk):
         gs = games[c0:c0 + chunk]
         G = len(gs)
-        base = stack_params([(est.params[g["home_id"]], est.params[g["away_id"]]) for g in gs])
+        pairs, slot_pairs = [], []
+        for g in gs:
+            hp, hs = est.params[g["home_id"]], est.slots[g["home_id"]]
+            ap, as_ = est.params[g["away_id"]], est.slots[g["away_id"]]
+            if outs:
+                hp, hs = apply_scenario(est, g["home_id"], hp, hs, {"out": [p for p in outs if p in hs.values()]})
+                ap, as_ = apply_scenario(est, g["away_id"], ap, as_, {"out": [p for p in outs if p in as_.values()]})
+            pairs.append((hp, ap))
+            slot_pairs.append((hs, as_))
+        base = stack_params(pairs)
         P = {k: np.repeat(v, n_sims, axis=0) for k, v in base.items()}
         gl = np.repeat(np.arange(G), n_sims)
         neu = np.repeat(np.array([bool(g["neutral_site"]) for g in gs]), n_sims)
@@ -83,16 +131,17 @@ def simulate_games(conn, games: list[dict], n_sims: int = DEFAULT_SIMS, seed: in
         A = res.away_pts.reshape(G, n_sims)
         PS = res.player_stats.reshape(G, n_sims, *res.player_stats.shape[1:])
         for i, g in enumerate(gs):
-            slots = (est.slots[g["home_id"]], est.slots[g["away_id"]])
+            slots = slot_pairs[i]
             pn = {int(p): f"{info.loc[p].first_name} {info.loc[p].last_name}" for s in slots for p in s.values()
                   if p is not None and p in info.index}
+            avail = _availability(conn, season, week, g, slots, pn, set(outs))
             sims = GameSims(H[i], A[i], PS[i], slots, (names.get(g["home_id"], "Home"), names.get(g["away_id"], "Away")),
                             pn, calib=calib, seed=int(g["game_id"]) % 100000)
             meta = {"anchored": bool(not np.isnan(tg[i]).any()), "anchor_shift": shifts[i].round(3).tolist(),
                     "line": {"spread_home": _f(g.get("spread_home")), "total": _f(g.get("over_under")),
                              "source": "DraftKings via ESPN", "fetched_at": g.get("line_fetched_at")},
                     "calibration": calib, "as_of": f"{season} before week {week}", "n_sims": n_sims,
-                    "model_version": MODEL_VERSION, "classification": "predicted"}
+                    "model_version": MODEL_VERSION, "classification": "predicted", "availability": avail}
             out.append((g, sims, meta))
     return out
 
@@ -106,17 +155,21 @@ def _f(v):
 
 
 @lru_cache(maxsize=32)
-def _cached(db_key: str, game_id: int, n_sims: int, line_key: str):
+def _cached(db_key: str, game_id: int, n_sims: int, line_key: str, outs: frozenset, avail_key: str):
     from ..db import connect
     conn = connect(db_key)
     g = _game(conn, game_id)
-    return simulate_games(conn, [g], n_sims)[0]
+    return simulate_games(conn, [g], n_sims, outs=outs)[0]
 
 
-def simulate_game(conn, game_id: int, n_sims: int = DEFAULT_SIMS):
+def simulate_game(conn, game_id: int, n_sims: int = DEFAULT_SIMS, outs=()):
     from ..analytics.team_params import conn_path
     g = _game(conn, game_id)
-    return _cached(conn_path(conn), int(game_id), int(n_sims), f"{g.get('spread_home')}|{g.get('over_under')}")
+    # availability changes (snapshot / import) invalidate the cached simulation
+    ak = conn.execute("SELECT COUNT(*), MAX(fetched_at) FROM availability WHERE season=? AND week=?",
+                      (int(g["season"]), int(g["week"]))).fetchone()
+    return _cached(conn_path(conn), int(game_id), int(n_sims), f"{g.get('spread_home')}|{g.get('over_under')}",
+                   frozenset(int(o) for o in outs), f"{ak[0]}|{ak[1]}")
 
 
 def prop_board(sims: GameSims) -> list[dict]:
@@ -137,26 +190,84 @@ def prop_board(sims: GameSims) -> list[dict]:
     return rows
 
 
-def game_card(conn, game_id: int, n_sims: int = DEFAULT_SIMS, sizes=(3, 5, 8), top: int = 2) -> dict:
-    g, sims, meta = simulate_game(conn, game_id, n_sims)
+def polymarket_book(conn, game_id: int) -> dict | None:
+    """Latest Polymarket US book for the game (live quotes, else the stored closing book); None if not listed."""
+    from ..ingest.polymarket import open_markets_db
+    from .market_sgp import market_book
+    try:
+        mc = open_markets_db()
+    except Exception:
+        return None
+    for kind in ("live", "close"):
+        b = market_book(mc, conn, game_id=game_id, kind=kind).get(int(game_id))
+        if b:
+            return b | {"kind": kind}
+    return None
+
+
+def _market_summary(sims: GameSims, book: dict | None, legs: list[Leg]) -> list[dict]:
+    """Team legs where Polymarket prices the same bet: model vs market probability."""
+    from .market_sgp import market_leg_prob
+    rows = []
+    for l in legs:
+        pm, src = market_leg_prob(l, book)
+        if pm is None:
+            continue
+        pmod = float(sims.hits(l).mean())
+        rows.append(dict(l.to_dict(), p_model=pmod, p_market=pm, market_source=src, edge_model_vs_market=pmod - pm))
+    return rows
+
+
+def _attach_market(card: dict, sims: GameSims, book: dict | None) -> None:
+    """Add the Polymarket-anchored price to every ticket (team legs at market marginals, simulated dependence)."""
+    from .market_sgp import price_market
+    for tickets in card["tickets"].values():
+        for t in tickets:
+            lanes = split_lanes(sims.n, t["holdout_seed"])[1] if "holdout_seed" in t else None
+            mp = price_market(sims, [Leg.from_dict(d) for d in t["legs"]], book, lanes=lanes)
+            t["market"] = {k: mp[k] for k in ("p_joint", "fair_american", "n_market_legs", "p_indep", "lift")}
+            # the price to beat: the more conservative of model and market-anchored
+            t["fair_american_conservative"] = prob_to_american(min(t["p_joint"], mp["p_joint"]))
+
+
+def game_card(conn, game_id: int, n_sims: int = DEFAULT_SIMS, sizes=(3, 5, 8), top: int = 2, outs=()) -> dict:
+    from .market_sgp import market_lines
+    g, sims, meta = simulate_game(conn, game_id, n_sims, outs)
     market = {"spread_home": meta["line"]["spread_home"], "total": meta["line"]["total"]}
-    card = build_card(sims, market if meta["anchored"] else None, sizes=sizes, top=top, seed=int(game_id) % 1000)
+    card = build_card(sims, market if meta["anchored"] else None, sizes=sizes, top=top, seed=int(game_id) % 1000,
+                      exclude=set(meta["availability"]["exclude"]))
+    book = polymarket_book(conn, game_id)
+    _attach_market(card, sims, book)
+    team_legs = [l for l in candidate_legs(sims, market if meta["anchored"] else None) if l.kind != "player"]
     h, a = sims.h, sims.a
     return {"game_id": int(game_id), "home": sims.team_names[0], "away": sims.team_names[1], "meta": meta,
             "game": {"home_pts": float(h.mean()), "away_pts": float(a.mean()), "home_win": float((h > a).mean()),
                      "margin_sd": float((h - a).std()), "total_sd": float((h + a).std())},
+            "polymarket": {"listed": book is not None, "kind": book.get("kind") if book else None,
+                           "lines": market_lines(book), "team_legs": _market_summary(sims, book, team_legs)},
             "props": prop_board(sims), **card}
 
 
 def price_legs(conn, game_id: int, legs: list[dict], book_american: float | None = None,
-               n_sims: int = DEFAULT_SIMS) -> dict:
-    g, sims, meta = simulate_game(conn, game_id, n_sims)
+               n_sims: int = DEFAULT_SIMS, outs=()) -> dict:
+    g, sims, meta = simulate_game(conn, game_id, n_sims, outs)
     L = [Leg.from_dict(d) for d in legs]
     for l in L:
         if l.kind == "player" and int(l.player_id) not in sims.where:
             raise ValueError(f"player {l.player_id} is not a projected starter in this game")
     out = price(sims, L, book_american=book_american)
     out["meta"] = meta
+    from .market_sgp import price_market
+    book = polymarket_book(conn, game_id)
+    mk = price_market(sims, L, book, book_american=book_american)
+    mk["listed"] = book is not None
+    mk["kind"] = book.get("kind") if book else None
+    out["market"] = mk
+    if book_american is not None:
+        # fire only when the book beats BOTH prices: the pure model and the market-anchored one
+        evs = [out["ev_per_unit"]] + ([mk["ev_per_unit"]] if mk["n_market_legs"] else [])
+        out["ev_conservative"] = min(evs)
+        out["verdict"] = "bet" if min(evs) > 0 else "pass"
     return out
 
 
@@ -169,7 +280,9 @@ def week_cards(conn, season: int, week: int, n_sims: int = DEFAULT_SIMS, log=pri
     now = utcnow()
     for g, sims, meta in simulate_games(conn, games, n_sims):
         market = {"spread_home": meta["line"]["spread_home"], "total": meta["line"]["total"]}
-        card = build_card(sims, market if meta["anchored"] else None, seed=int(g["game_id"]) % 1000)
+        card = build_card(sims, market if meta["anchored"] else None, seed=int(g["game_id"]) % 1000,
+                          exclude=set(meta["availability"]["exclude"]))
+        _attach_market(card, sims, polymarket_book(conn, int(g["game_id"])))
         c = {"game_id": int(g["game_id"]), "start": g["start_date"], "home": sims.team_names[0],
              "away": sims.team_names[1], "meta": meta, **card}
         cards.append(c)

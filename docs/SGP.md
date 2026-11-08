@@ -100,6 +100,11 @@ python -m cfbquant.cli sgp board --game 401856887             # prop board + 3/5
 python -m cfbquant.cli sgp cards --season 2026 --week 11      # every game; writes data/cards/ + the ticket ledger
 python -m cfbquant.cli sgp price --game 401856887 --legs slip.json --odds +600   # price a book SGP
 python -m cfbquant.cli sgp settle                             # grade ledger tickets once games are final
+python -m cfbquant.cli availability snapshot --season 2026 --week 11   # roster removal + game-log flags
+python -m cfbquant.cli availability import --season 2026 --week 11 --file report.csv   # official report
+python -m cfbquant.cli markets live                           # Polymarket books for upcoming games (team legs)
+python -m cfbquant.cli markets close                          # closing books + team-total ladders for finals
+python scripts/validate_market_sgp.py --season 2026 --weeks 1-10      # team-combo correlation vs Polymarket
 python -m cfbquant.cli serve                                  # SGP Lab tab: board, slip, auto tickets
 ```
 
@@ -108,13 +113,74 @@ A leg (JSON): `{"kind": "player", "player_id": 4870906, "stat": "pass_yds", "op"
 `{"kind": "team_total", "side": "away", "op": "under", "line": 20.5}`; `{"kind": "ml", "side": "away"}`.
 Player stats: `pass_yds pass_cmp pass_td rush_yds rush_td receptions rec_yds rec_td td (anytime) rush_rec_yds pass_rush_yds`.
 
+## Availability (the injury gap)
+
+There is no open CFB injury feed: ESPN's injuries endpoints are empty for college, core depth charts return "not
+supported", and the conference availability reports (Big Ten, SEC, ACC, ...) sit behind bot walls or robots.txt
+rules that disallow AI agents, so they are not scraped. `cfbquant/ingest/availability.py` combines what is available:
+
+| Signal | Source | Effect | Walk-forward evidence (2026 wk 3–10, projected starters) |
+|---|---|---|---|
+| Official report | `cli availability import --file report.csv` (columns team, player, status) | OUT/DOUBTFUL removed before simulation; QUESTIONABLE flagged | — (authoritative) |
+| Roster removal | ESPN current roster: player with real 2026 production is gone **and** missed his team's last game | OUT | removal alone is noise (112 of 159 "missing" players played the prior week) |
+| Missed last game | game log | kept in the sim, **kept off auto tickets**, shown for a manual check | appeared 62% vs 92% unflagged |
+| Missed 2 of last 3 | game log | same | appeared 64% |
+| Low volume last game | game log (< 40% of his average) | warning only | appeared 81% |
+
+`cli availability snapshot --season 2026 --week N` refreshes the ESPN signals (and adds ESPN roster players missing
+from the DB, so an OUT starter always has a backup to promote). In the SGP Lab, **mark OUT** on any starter re-runs
+the simulation with the next man up (QB changes also move the team's passing efficiency) and re-builds every ticket.
+An OUT player can no longer be used as anyone's backup.
+
+Example (week 11): the card's Michigan QB1 is Tommy Carr. The data support it: Carr started weeks 8–10, and Bryce
+Underwood is off the current ESPN roster and last appeared in week 8, so he is removed automatically. Mark Carr OUT
+and the sim promotes the QB2 and the tickets change. The anchor still uses the posted line: if a starter is ruled
+out late, re-run `cli lines` once the book moves.
+
+## Polymarket (the book-price gap)
+
+Polymarket US has **no player props and no parlays**, and its team stat props (yards, TDs, FGs) have empty books,
+so it cannot show what a sportsbook charges for an SGP. It does list moneylines, spread and total ladders and
+team-points ladders with tradeable books up to kickoff. `cfbquant/models/market_sgp.py` uses them in three ways:
+
+1. **No-vig marginals for team legs.** A rung's own mid is used when its book is ≤12c wide; otherwise a normal fit
+   through the whole ladder (no extrapolation beyond 3 points past the quoted rungs).
+2. **Market-anchored fair price** (`price_market`). Each team leg's threshold in the simulation is moved so that leg
+   hits at exactly the Polymarket probability (quantile mapping, a copula), then the joint is counted lane by lane.
+   The market sets the marginals and the simulation supplies only the dependence (shrunk with the same α). Player
+   legs keep the model marginal. Tickets show both prices plus a **price to beat** (the more conservative of the
+   two). The slip returns a **BET / PASS** verdict: bet only if the book's odds give positive EV under both prices.
+3. **A real-money test of the correlation** (`scripts/validate_market_sgp.py`, results in `model_validation` as
+   `sgp_market_v1`).
+
+**Validation:** 486 completed 2026 games (weeks 1–10), Polymarket closing mids (last book sample before kickoff),
+every orientation of each 2-leg team combo at the market's own coin-flip rungs, simulation estimated before each
+week. Log loss (lower is better):
+
+| Combo | n | Market independence | Market × sim dependence | Model only | Gain vs independence (±1 SE, game-clustered) |
+|---|---|---|---|---|---|
+| Team total + opposing side | 3,748 | 0.5550 | **0.5140** | 0.5153 | +0.041 ± 0.003 |
+| Team total + game total | 3,748 | 0.5569 | **0.5198** | 0.5217 | +0.037 ± 0.003 |
+| Side + total | 3,888 | 0.5305 | **0.5303** | 0.5326 | +0.000 ± 0.001 |
+
+For the positively correlated pairs (simulated lift > 1.3, n = 3,624) the real hit rate was **36.6%**. The
+market-anchored price said 34.0% and market independence said 24.6%. The negatively correlated pairs hit 12.5%
+(priced at 14.1%, independence 24.6%). So the simulator's team-level dependence is real and sized correctly. The
+best α for team-only pairs is ≈1.0 (0.95 when fitted on weeks 1–5 and scored on 6–10), so the live α = 0.8 is
+slightly conservative on these legs. Side × total is close to independent in CFB, and both the model and the market
+treat it that way.
+
+What this does **not** prove: the player-leg correlation is validated only against realised outcomes (the ticket
+tables above), not against a market. The edge on a ticket still depends on what the book charges, so enter its
+SGP odds in the slip.
+
 ## Limits — read before betting
 
-* **No book prop or SGP prices.** ESPN's free feed has no CFB player props (the core `propBets` endpoint 404s), so the
-  output is a *fair price*. A ticket is a bet only when the book pays more than `fair_american`; enter the book's
-  price in the slip to get EV and a Kelly stake.
-* **Availability.** No injury feed: a projected starter who is ruled out late voids the leg at most books (and the
-  whole SGP at some). Check the depth chart before betting.
+* **No book prop or SGP prices.** Neither ESPN (the core `propBets` endpoint 404s for CFB) nor Polymarket lists CFB
+  player props or parlays. Team legs now carry a no-vig Polymarket price, but a ticket is still a bet only when the
+  book pays more than the *price to beat*. Enter the book's odds in the slip and fire only on a BET verdict.
+* **Availability.** Signals, not a feed (see above). Game-log-flagged players are kept off auto tickets. A late
+  scratch still voids the leg at most books (and the whole SGP at some). Import the official report when it posts.
 * **Usage tail.** Only eight target slots and four rushers per team are simulated; the calibrator absorbs the volume
   that real offences spread to WR5+/RB3+, but that is a correction, not a model of it.
 * **Line timing.** Validation anchors to a near-closing line. Live cards anchor to whatever `cli lines` last captured;

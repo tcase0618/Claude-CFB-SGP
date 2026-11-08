@@ -18,8 +18,14 @@ games, 2,196 tickets; correlation shrinkage fitted on weeks 3–6 and scored on 
 * What made the difference, in order: one-leg-per-player and realistic lines (removed tautological "lift"),
   garbage-time substitution, recency-weighted starters (QB1 appearance 79% → 91%), fitted 4th-down policy and pace,
   an early-exit mixture for starters, a shared game-environment shock, and walk-forward volume calibration.
-* Not available from free data: book prop/SGP prices (ESPN has no CFB props), injuries. Output is a fair price;
-  `cli sgp price --odds` gives EV against a book quote. Opening + current lines are now snapshotted (`cli lines`).
+* Availability: no open CFB injury feed exists. ESPN roster removal + game-log flags (`cli availability snapshot`),
+  official-report CSV import, and a manual mark-OUT that re-simulates with the next man up. Flagged players are
+  kept off auto tickets (they appeared 62–64% of the time vs 92%).
+* Polymarket US: no props or parlays, but no-vig team-leg prices. Tickets and slips carry a market-anchored price
+  (Polymarket marginals × simulated dependence) and a BET/PASS verdict that needs positive EV under both prices.
+  On 486 games the simulated team-leg dependence beats market independence by 0.037–0.041 log loss on
+  team-total combos (±0.003); the correlated pairs hit 36.6% vs 34.0% priced vs 24.6% independent.
+* Still not available from free data: book prop/SGP prices. Opening + current lines are snapshotted (`cli lines`).
 * Full-game accuracy after the engine changes (2026, 681 games): simulator log loss 0.523 (was 0.521), margin MAE 14.9,
   total MAE 12.7 — unchanged within noise; the sportsbook line (0.435) remains the bar for sides.
 

@@ -519,6 +519,42 @@ def sync_closing(conn, client: PolymarketUSClient, start_min: str | None = None,
     return n
 
 
+TEAM_POINTS = "football_team_points_full_game_total"
+
+
+def backfill_team_totals(conn, client: PolymarketUSClient, rungs: int = 2, log=print) -> int:
+    """Closing (pre-kickoff) prices for team-points totals: the `rungs` lines nearest each team's implied total
+    (from the game's closing spread/total fit). Team totals are the one prop family with a live book (~80% of
+    pre-game quotes within 10c); the stat props (yards, TDs, FGs) have empty books and are skipped."""
+    imp = pd.read_sql_query("""SELECT i.event_id, i.margin_home_mean, i.total_mean, e.start_time, e.home_pm_team_id,
+        e.away_pm_team_id FROM pm_implied i JOIN pm_events e USING(event_id) WHERE i.kind='close'
+        AND i.margin_home_mean IS NOT NULL AND i.total_mean IS NOT NULL""", conn)
+    mk = pd.read_sql_query("SELECT market_slug, event_id, line, long_pm_team_id, long_desc FROM pm_markets WHERE sports_market_type=?",
+                           conn, params=(TEAM_POINTS,))
+    have = {r[0] for r in conn.execute("""SELECT DISTINCT m.event_id FROM pm_quotes q JOIN pm_markets m USING(market_slug)
+        WHERE q.kind='close' AND m.sports_market_type=?""", (TEAM_POINTS,))}
+    n = 0
+    for r in imp[~imp.event_id.isin(have)].itertuples():
+        st = _ts(r.start_time)
+        target = {r.home_pm_team_id: (r.total_mean + r.margin_home_mean) / 2, r.away_pm_team_id: (r.total_mean - r.margin_home_mean) / 2}
+        quotes = []
+        for team, tgt in target.items():
+            m = mk[(mk.event_id == r.event_id) & (mk.long_pm_team_id == team)].dropna(subset=["line"])
+            for row in m.assign(_d=(m.line - tgt).abs()).sort_values("_d").head(rungs).itertuples():
+                mid, t, bid, ask = _closing_mid(client, row.market_slug, st)
+                if mid is not None:
+                    quotes.append(dict(market_slug=row.market_slug, kind="close", ts=datetime.fromtimestamp(t, timezone.utc).isoformat(),
+                                       bid=bid, ask=ask, mid=mid, last=None, volume=None, open_interest=None))
+        if quotes:
+            insert_df(conn, "pm_quotes", pd.DataFrame(quotes))
+            conn.commit()
+        n += 1
+        if n % 25 == 0:
+            log(f"  team totals: {n} events ({client.calls} calls)")
+    log(f"team-total backfill: {n} events")
+    return n
+
+
 def recompute_implied(conn, kind: str = "close") -> int:
     """Re-derive event-level implied numbers from stored quotes (e.g. after a filter or fitting change)."""
     q = pd.read_sql_query("""SELECT q.*, m.event_id, m.sports_market_type, m.line, m.long_pm_team_id FROM pm_quotes q

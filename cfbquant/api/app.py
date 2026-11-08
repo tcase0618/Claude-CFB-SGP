@@ -568,6 +568,11 @@ class PriceRequest(BaseModel):
     legs: list[dict]
     book_american: float | None = None
     sims: int | None = None
+    out: list[int] = []
+
+
+def _outs(out: str | None) -> tuple:
+    return tuple(int(x) for x in (out or "").split(",") if x.strip().isdigit())
 
 
 @app.get("/api/sgp/slate")
@@ -589,12 +594,13 @@ def sgp_slate(season: int | None = None, week: int | None = None):
 
 
 @app.get("/api/sgp/card/{game_id}")
-def sgp_card(game_id: int, sims: int = 6000):
+def sgp_card(game_id: int, sims: int = 6000, out: str | None = None):
+    """`out`: comma-separated player ids to treat as OUT (re-simulates with the next man up)."""
     from ..models.sgp_service import game_card
     sims = int(min(max(sims, 1000), 20000))
     try:
         with _lock:
-            return clean(game_card(conn(), game_id, n_sims=sims))
+            return clean(game_card(conn(), game_id, n_sims=sims, outs=_outs(out)))
     except KeyError as e:
         raise HTTPException(404, str(e))
 
@@ -606,7 +612,8 @@ def sgp_price(req: PriceRequest):
         raise HTTPException(400, "no legs")
     try:
         with _lock:
-            return clean(price_legs(conn(), req.game_id, req.legs, req.book_american, n_sims=req.sims or DEFAULT_SIMS))
+            return clean(price_legs(conn(), req.game_id, req.legs, req.book_american, n_sims=req.sims or DEFAULT_SIMS,
+                                    outs=tuple(req.out)))
     except (KeyError, ValueError) as e:
         raise HTTPException(400, str(e))
 

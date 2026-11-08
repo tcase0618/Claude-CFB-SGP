@@ -595,16 +595,26 @@ async function sgpView(app, h) {
     <div class="note">Lines: DraftKings via ESPN. Games without a posted line are simulated unanchored. Refresh with <code>cli lines --season ${sl.season}</code>.</div>`;
   if (!gid) { app.innerHTML = panel('SGP Lab', '<div class="sub">No upcoming games.</div>'); return; }
   app.innerHTML = `<div class="grid" style="grid-template-columns:300px 1fr 340px;gap:10px"><div>${panel(`Slate — week ${sl.week}`, slate)}</div><div id="sgp-main"><div class="loading">Simulating game (market-anchored, 6,000 sims)…</div></div><div><div id="sgp-side"></div><div id="sgp-val"></div></div></div>`;
+  S.outs = S.outs || {};
+  const outs = S.outs[gid] || [];
   let c;
-  try { c = await api(`/api/sgp/card/${gid}`); } catch (e) { $('#sgp-main').innerHTML = err(e); return; }
+  try { c = await api(`/api/sgp/card/${gid}${outs.length ? `?out=${outs.join(',')}` : ''}`); } catch (e) { $('#sgp-main').innerHTML = err(e); return; }
   S.sgpCard = c;
   if (S.slipGame !== gid) { S.slip = []; S.slipGame = gid; }
   const m = c.meta;
+  const pmk = c.polymarket || {};
+  const pl = pmk.lines;
+  const pmHead = pmk.listed && pl ? `<div class="sub" style="margin-top:4px">Polymarket US (${E(pmk.kind)} ${E((pl.ts || '').slice(0, 16).replace('T', ' '))}Z, no-vig mids): ${pl.p_home_ml != null ? `${E(c.home)} ML ${pc(pl.p_home_ml)}` : ''}${pl.spread_home != null ? ` · ${E(c.home)} ${spr(pl.spread_home)}` : ''}${pl.total != null ? ` · total ${f(pl.total, 1)}` : ''}${pl.team_total_home != null ? ` · TT ${E(c.home)} ${f(pl.team_total_home, 1)} / ${E(c.away)} ${f(pl.team_total_away, 1)}` : ''}</div>`
+    : '<div class="sub mut" style="margin-top:4px">Polymarket US: game not listed (run <code>cli markets live</code>) — tickets carry the model price only.</div>';
+  const pmLegs = (pmk.team_legs || []).length ? `<table><tr><th>Team leg</th><th class="n">Model</th><th class="n">Polymarket</th><th class="n">Model − mkt</th><th>Source</th></tr>
+    ${pmk.team_legs.map(r => `<tr><td>${E(r.label)}</td><td class="n">${pc(r.p_model)}</td><td class="n"><b>${pc(r.p_market)}</b></td><td class="n ${cls(r.edge_model_vs_market)}">${fs(100 * r.edge_model_vs_market, 1)}pp</td><td class="sub">${E(r.market_source)}</td></tr>`).join('')}</table>
+    <div class="note">On team legs the market wins: the closing line beats every model here. Tickets re-price these legs at the Polymarket number and keep the simulation only for the correlation.</div>` : '';
   const head = `<div class="row between"><div><b>${E(c.away)} @ ${E(c.home)}</b> <span class="sub">${E(m.as_of)} · ${m.n_sims.toLocaleString()} sims · ${tag('predicted')}</span></div>
     <div class="sub">${m.anchored ? `<span class="pos">ANCHORED</span> to DK ${E(c.home)} ${spr(m.line.spread_home)}, total ${m.line.total}` : '<span class="neg">UNANCHORED — no line posted</span>'}</div></div>
-    <div class="sub" style="margin-top:4px">Sim: ${E(c.home)} ${f(c.game.home_pts, 1)} – ${f(c.game.away_pts, 1)} ${E(c.away)} · P(${E(c.home)} win) ${pc(c.game.home_win)} · margin SD ${f(c.game.margin_sd, 1)} · total SD ${f(c.game.total_sd, 1)}</div>`;
+    <div class="sub" style="margin-top:4px">Sim: ${E(c.home)} ${f(c.game.home_pts, 1)} – ${f(c.game.away_pts, 1)} ${E(c.away)} · P(${E(c.home)} win) ${pc(c.game.home_win)} · margin SD ${f(c.game.margin_sd, 1)} · total SD ${f(c.game.total_sd, 1)}</div>` + pmHead;
   const ticket = (t, k) => `<div class="panel" style="padding:8px;margin:6px 0">
     <div class="row between"><b>${k}-leg</b><span>P <b>${pc(t.p_joint)}</b> <span class="mut">[${pc(t.p_joint_ci90[0], 0)}–${pc(t.p_joint_ci90[1], 0)}]</span> · fair <b>${am(t.fair_american)}</b> · indep ${am(t.indep_american)} · lift <b class="pos">${f(t.lift, 2)}×</b></span></div>
+    ${t.market && t.market.n_market_legs ? `<div class="sub">Polymarket-anchored (${t.market.n_market_legs} team leg${t.market.n_market_legs > 1 ? 's' : ''} at market): P ${pc(t.market.p_joint)} · fair ${am(t.market.fair_american)} · <b>price to beat ${am(t.fair_american_conservative)}</b></div>` : ''}
     <table>${t.legs.map(l => `<tr><td>${E(l.label)}</td><td class="n">${pc(l.p, 0)}</td><td class="n mut">${am(l.fair_american)}</td></tr>`).join('')}</table></div>`;
   const tickets = Object.entries(c.tickets).map(([k, ts]) => ts.length ? ts.map(t => ticket(t, k)).join('') : `<div class="sub">${k}-leg: no ticket inside the probability band.</div>`).join('');
   const board = `<input class="search" id="pbs" placeholder="Filter player / market…" style="max-width:240px">
@@ -615,9 +625,21 @@ async function sgpView(app, h) {
     <div class="row" style="margin-top:6px">Game lines: ${[['ml', 'home', null, 'ML'], ['ml', 'away', null, 'ML']].map(([k, sd]) => `<a class="chip addgl" data-k="${k}" data-s="${sd}">+${E(sd === 'home' ? c.home : c.away)} ML</a>`).join('')}
       ${m.line.spread_home != null ? `<a class="chip addgl" data-k="spread" data-s="home">+${E(c.home)} ${spr(m.line.spread_home)}</a><a class="chip addgl" data-k="spread" data-s="away">+${E(c.away)} ${spr(-m.line.spread_home)}</a>` : ''}
       ${m.line.total != null ? `<a class="chip addgl" data-k="total" data-s="over">+Over ${m.line.total}</a><a class="chip addgl" data-k="total" data-s="under">+Under ${m.line.total}</a>` : ''}</div>`;
-  $('#sgp-main').innerHTML = panel('Game', head) + panel('Prop board — main lines', board, 'edit a line to re-price · add legs to the slip') +
+  const av = m.availability || {starters: [], removed: [], manual_out: []};
+  const lvl = {exclude: '<span class="neg">DOUBT — kept off auto tickets</span>', warn: '<span class="amb">WATCH</span>', ok: '<span class="pos">ok</span>'};
+  const avail = `<table><tr><th>Starter</th><th>Team</th><th>Slot</th><th>Status</th><th>Evidence</th><th></th></tr>
+    ${av.starters.filter(x => ['QB1', 'RB1', 'WR1', 'WR2', 'WR3', 'TE1'].includes(x.slot) || x.level !== 'ok').map(x => `<tr><td>${E(x.name || '')}</td><td class="sub">${E(x.side === 'home' ? c.home : c.away)}</td><td class="sub">${E(x.slot)}</td>
+      <td>${lvl[x.level]}${x.status ? ` · ${E(x.status)}` : ''}</td><td class="sub">${E((x.evidence || []).join('; '))}</td>
+      <td><a class="chip markout" data-p="${x.player_id}">mark OUT</a></td></tr>`).join('')}</table>
+    ${av.removed.length ? `<div class="sub" style="margin-top:6px">Removed before simulation: ${av.removed.map(r => `<b>${E(r.name || r.player_id)}</b> (${E(r.status)} · ${E(r.reason || '')}${r.evidence ? ' · ' + E(r.evidence) : ''})`).join(', ')}</div>` : ''}
+    ${outs.length ? `<div class="sub amb" style="margin-top:6px">Manually marked OUT: ${outs.length} player(s) — re-simulated with the next man up. <a class="chip" id="clrout">reset</a></div>` : ''}
+    <div class="note">${E(av.note || '')} Official reports can be imported with <code>cli availability import</code>.</div>`;
+  $('#sgp-main').innerHTML = panel('Game', head) + panel('Availability check', avail, 'mark a player OUT to re-simulate without him') + panel('Prop board — main lines', board, 'edit a line to re-price · add legs to the slip') +
+    (pmLegs ? panel('Team legs — model vs Polymarket', pmLegs, 'Polymarket US mids · no bookmaker margin') : '') +
     panel('Auto tickets — most-correlated legs inside each size\'s probability band', tickets,
       'priced on held-out sims · bet only if the book pays more than fair');
+  document.querySelectorAll('.markout').forEach(a => a.onclick = () => { S.outs[gid] = [...new Set([...(S.outs[gid] || []), +a.dataset.p])]; S.slip = []; sgpView(app, h); });
+  if ($('#clrout')) $('#clrout').onclick = () => { S.outs[gid] = []; S.slip = []; sgpView(app, h); };
   $('#pbs').oninput = e => document.querySelectorAll('#pbt tr[data-n]').forEach(r => r.style.display = r.dataset.n.includes(e.target.value.toLowerCase()) ? '' : 'none');
   document.querySelectorAll('.addleg').forEach(a => a.onclick = () => {
     const p = c.props[+a.dataset.i]; const ln = +document.querySelector(`.ln[data-i="${a.dataset.i}"]`).value;
@@ -643,7 +665,7 @@ function slipRender() {
   $('#clr').onclick = () => { S.slip = []; slipRender(); };
   $('#prc').onclick = async () => {
     if (!S.slip.length) return;
-    const bo = $('#bko').value.trim(); const body = {game_id: S.slipGame, legs: S.slip, book_american: bo ? +bo : null};
+    const bo = $('#bko').value.trim(); const body = {game_id: S.slipGame, legs: S.slip, book_american: bo ? +bo : null, out: (S.outs || {})[S.slipGame] || []};
     $('#prc-out').innerHTML = '<div class="loading">Pricing…</div>';
     const r = await fetch('/api/sgp/price', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
     if (!r.ok) { $('#prc-out').innerHTML = err(new Error(await r.text())); return; }
@@ -653,7 +675,14 @@ function slipRender() {
       <tr><td>Correlation lift</td><td class="n">${f(t.lift, 2)}×</td></tr>
       ${t.book_american != null ? `<tr><td>Book implied</td><td class="n">${pc(t.book_implied)}</td></tr><tr><td>EV / unit</td><td class="n ${cls(t.ev_per_unit)}"><b>${fs(t.ev_per_unit, 3)}</b></td></tr><tr><td>¼ Kelly stake</td><td class="n">${pc(t.quarter_kelly, 2)} of bankroll</td></tr>` : ''}</table>
       ${t.legs.map(l => `<div class="sub">${E(l.label)}: ${pc(l.p, 1)}</div>`).join('')}
-      <div class="note">Model price ${tag('predicted')}. Includes parameter uncertainty; excludes injury news after the line was captured.</div>`;
+      ${(() => { const mk = t.market; if (!mk) return '';
+        if (!mk.n_market_legs) return `<div class="sub mut" style="margin-top:6px">Polymarket: ${mk.listed ? 'no leg on this slip is a market Polymarket lists (player props are not listed)' : 'game not listed'} — model price only.</div>`;
+        return `<table style="margin-top:6px"><tr><th colspan="2">Polymarket-anchored (${mk.n_market_legs}/${mk.n_legs} legs at market)</th></tr>
+          <tr><td>Joint P</td><td class="n"><b>${pc(mk.p_joint)}</b></td></tr><tr><td>Fair odds</td><td class="n"><b>${am(mk.fair_american)}</b></td></tr>
+          ${mk.legs.filter(l => l.p_market != null).map(l => `<tr><td class="sub">${E(l.label)}</td><td class="n sub">mkt ${pc(l.p_market, 1)} · model ${pc(l.p_model, 1)}</td></tr>`).join('')}
+          ${mk.ev_per_unit != null ? `<tr><td>EV / unit</td><td class="n ${cls(mk.ev_per_unit)}"><b>${fs(mk.ev_per_unit, 3)}</b></td></tr>` : ''}</table>`; })()}
+      ${t.verdict ? `<div style="margin-top:6px;font-weight:700" class="${t.verdict === 'bet' ? 'pos' : 'neg'}">${t.verdict === 'bet' ? 'BET' : 'PASS'} — worst-case EV ${fs(t.ev_conservative, 3)} / unit (book must beat the model and the market-anchored price)</div>` : ''}
+      <div class="note">Model price ${tag('predicted')}; market-anchored price ${tag('calculated')} from Polymarket mids for team legs. Includes parameter uncertainty; excludes injury news after the line was captured.</div>`;
   };
 }
 async function sgpValidation() {

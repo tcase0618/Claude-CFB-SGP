@@ -262,7 +262,8 @@ def _line_for_prob(v: np.ndarray, p_over: float) -> float:
     return min(cands, key=lambda c: abs((v > c).mean() - p_over)) if cands else 0.5
 
 
-def candidate_legs(sims: GameSims, market: dict | None = None, ladder=(0.5, 0.65, 0.78), min_mean: dict | None = None) -> list[Leg]:
+def candidate_legs(sims: GameSims, market: dict | None = None, ladder=(0.5, 0.65, 0.78), min_mean: dict | None = None,
+                   exclude: set | None = None) -> list[Leg]:
     """Generate the leg menu: game lines at the market number, and player/team-total legs on an alt-line ladder.
 
     `ladder` holds target over-probabilities: 0.5 ~ the main prop line a book would post (the median), higher values
@@ -290,6 +291,8 @@ def candidate_legs(sims: GameSims, market: dict | None = None, ladder=(0.5, 0.65
             legs.append(Leg("team_total", side=side, op="over", line=_line_for_prob(v, p), name=nm[side]))
         legs.append(Leg("team_total", side=side, op="under", line=_line_for_prob(v, 0.5), name=nm[side]))
     for pid, (side, slot) in sims.where.items():
+        if exclude and pid in exclude:            # availability doubt: never build a ticket on him
+            continue
         for st in SLOT_MARKETS.get(slot, []):
             v = sims.stat(pid, st)
             if v.mean() < min_mean.get(st, 0):
@@ -324,6 +327,13 @@ MIN_LINE = {"pass_yds": 149.5, "pass_cmp": 11.5, "rush_yds": 19.5, "rec_yds": 19
 TIERS = {3: (0.50, 0.85), 5: (0.58, 0.88), 8: (0.66, 0.92)}
 
 
+def split_lanes(n: int, seed: int) -> tuple[np.ndarray, np.ndarray]:
+    """(search lanes, pricing lanes) for a ticket; reproducible from the seed so any later re-price of the ticket
+    (e.g. the market-anchored one) uses the same held-out lanes."""
+    perm = np.random.default_rng(seed).permutation(n)
+    return perm[: n // 2], perm[n // 2:]
+
+
 def build_tickets(sims: GameSims, legs: list[Leg], size: int, *, top: int = 2, beam: int = 40, seed: int = 0,
                   band: tuple[float, float] | None = None, min_joint: float | None = None) -> list[dict]:
     """Beam search for the most positively correlated `size`-leg ticket inside the tier's leg-probability band.
@@ -331,9 +341,7 @@ def build_tickets(sims: GameSims, legs: list[Leg], size: int, *, top: int = 2, b
     Objective: log lift (joint / independent), i.e. the part of the price a correlation-naive book gets wrong.
     Searched on half A of the lanes, priced on half B."""
     lo, hi = band or TIERS.get(size, (0.5, 0.9))
-    rng = np.random.default_rng(seed)
-    perm = rng.permutation(sims.n)
-    A, B = perm[: sims.n // 2], perm[sims.n // 2:]
+    A, B = split_lanes(sims.n, seed)
     X = np.stack([sims.hits(l) for l in legs], axis=1)
     pa = X[A].mean(axis=0)
     ok = np.flatnonzero((pa >= lo) & (pa <= hi))
@@ -392,6 +400,7 @@ def build_tickets(sims: GameSims, legs: list[Leg], size: int, *, top: int = 2, b
         used.append(s)
         tl = [legs[ok[i]] for i in st]
         t = price(sims, tl, lanes=B)
+        t["holdout_seed"] = int(seed)
         t["search_lift"] = float(np.exp(math.log(max(mask_mean(XA, st), 1e-12)) - sum(logm[i] for i in st)))
         out.append(t)
         if len(out) >= top:
@@ -403,9 +412,10 @@ def mask_mean(XA, st):
     return float(XA[:, list(st)].all(axis=1).mean())
 
 
-def build_card(sims: GameSims, market: dict | None = None, sizes=(3, 5, 8), top: int = 2, seed: int = 0) -> dict:
-    legs = candidate_legs(sims, market)
-    card = {"n_sims": sims.n, "n_candidate_legs": len(legs), "tickets": {}}
+def build_card(sims: GameSims, market: dict | None = None, sizes=(3, 5, 8), top: int = 2, seed: int = 0,
+               exclude: set | None = None) -> dict:
+    legs = candidate_legs(sims, market, exclude=exclude)
+    card = {"n_sims": sims.n, "n_candidate_legs": len(legs), "excluded_players": sorted(exclude or []), "tickets": {}}
     for k in sizes:
         card["tickets"][str(k)] = build_tickets(sims, legs, k, top=top, seed=seed + k)
     return card

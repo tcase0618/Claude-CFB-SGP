@@ -8,3 +8,4 @@ data/parquet/
 .env
 data/*.pkl
 data/cards/
+data/*.csv

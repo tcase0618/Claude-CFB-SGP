@@ -66,11 +66,15 @@ def main(argv=None):
     s.add_argument("--season", type=int, required=True); s.add_argument("--week", type=int, required=True)
     s.add_argument("--sims", type=int, default=None); s.add_argument("--seed", type=int, default=None)
     s.add_argument("--store", action="store_true")
-    s = sub.add_parser("markets"); s.add_argument("action", choices=["live", "close", "calibration"])
+    s = sub.add_parser("markets"); s.add_argument("action", choices=["live", "close", "calibration", "teamtotals"])
     s.add_argument("--since", default=None); s.add_argument("--until", default=None); s.add_argument("--limit", type=int, default=None)
     s.add_argument("--days", type=int, default=8)
     s = sub.add_parser("lines", help="snapshot opening + current DraftKings lines for upcoming games (ESPN)")
     s.add_argument("--season", type=int, required=True); s.add_argument("--week", type=int, default=None)
+    s = sub.add_parser("availability", help="player availability: ESPN roster/game-log signals or import a report")
+    s.add_argument("action", choices=["snapshot", "import", "show"])
+    s.add_argument("--season", type=int, required=True); s.add_argument("--week", type=int, required=True)
+    s.add_argument("--file", help="CSV with team, player, status columns (official availability report)")
     s = sub.add_parser("sgp", help="prop / same-game-parlay engine")
     s.add_argument("action", choices=["cards", "price", "settle", "board"])
     s.add_argument("--season", type=int); s.add_argument("--week", type=int); s.add_argument("--game", type=int)
@@ -98,6 +102,9 @@ def main(argv=None):
             pm.sync_live(mc, cl, days_ahead=a.days)
         elif a.action == "close":
             pm.sync_closing(mc, cl, start_min=a.since, start_max=a.until, limit=a.limit)
+            pm.backfill_team_totals(mc, cl)
+        elif a.action == "teamtotals":
+            pm.backfill_team_totals(mc, cl)
         else:
             import os
             os.environ.setdefault("CFBQ_DB", str(db))
@@ -113,6 +120,19 @@ def main(argv=None):
         from .ingest.espn import ESPNClient, snapshot_lines
         with open_db(db) as conn:
             snapshot_lines(conn, ESPNClient(), a.season, a.week)
+        return
+    if a.cmd == "availability":
+        from .ingest import availability as av
+        with open_db(db) as conn:
+            if a.action == "snapshot":
+                from .ingest.espn import ESPNClient
+                av.snapshot_availability(conn, ESPNClient(), a.season, a.week)
+            elif a.action == "import":
+                print(json.dumps(av.import_report(conn, a.season, a.week, a.file), indent=1))
+            print(pd.read_sql_query("""SELECT t.school, p.first_name || ' ' || p.last_name AS player, a.status, a.reason,
+                a.evidence, a.source FROM availability a LEFT JOIN players p ON p.player_id=a.player_id
+                LEFT JOIN teams t ON t.team_id=a.team_id WHERE a.season=? AND a.week=? ORDER BY a.status, t.school""",
+                                    conn, params=(a.season, a.week)).to_string(index=False, max_colwidth=46))
         return
     if a.cmd == "sgp":
         from .models import sgp_service as svc

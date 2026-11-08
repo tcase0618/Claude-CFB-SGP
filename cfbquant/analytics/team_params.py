@@ -462,8 +462,8 @@ def _usage(conn, season, before_week, injuries_week, plays):
         for s in OFF_SLOTS + DEF_SLOTS:
             pos = SLOT_POS[s]
             cand = healthy[healthy.position.isin(pos) & ~healthy.player_id.isin(used)]
-            if cand.empty:
-                cand = d[d.position.isin(pos) & ~d.player_id.isin(used)]
+            if cand.empty:                         # nobody healthy left: an OUT player is never used as a fill-in
+                cand = d[d.position.isin(pos) & ~d.player_id.isin(used) & ~d.out]
             if cand.empty:
                 sm[s] = None
                 continue

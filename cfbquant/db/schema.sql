@@ -364,3 +364,11 @@ CREATE TABLE IF NOT EXISTS sgp_tickets (
     n_legs INTEGER, legs_json TEXT, p_joint REAL, p_indep REAL, fair_american REAL,
     book_american REAL, stake REAL, status TEXT DEFAULT 'open', result REAL, settled_at TEXT, note TEXT
 );
+
+-- Availability signals for upcoming games (official report imports, ESPN roster removal, game-log flags).
+-- status: OUT / DOUBTFUL / QUESTIONABLE / PROBABLE / FLAG. OUT and DOUBTFUL are mirrored into `injuries`.
+CREATE TABLE IF NOT EXISTS availability (
+    season INTEGER NOT NULL, week INTEGER NOT NULL, team_id INTEGER, player_id INTEGER, status TEXT NOT NULL,
+    reason TEXT, evidence TEXT, source TEXT NOT NULL, fetched_at TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_availability ON availability (season, week, player_id);

@@ -55,11 +55,14 @@ python -m cfbquant.cli sgp board --game <espn_game_id>     # prop board + best 3
 python -m cfbquant.cli sgp cards --season 2026 --week 11   # whole slate -> data/cards/ + paper-trading ledger
 python -m cfbquant.cli sgp price --game <id> --legs slip.json --odds +600   # EV of a book SGP
 python scripts/validate_sgp.py --season 2026 --weeks 3-10  # walk-forward validation (~16 min)
+python -m cfbquant.cli availability snapshot --season 2026 --week 11   # availability signals (no open injury feed)
+python scripts/validate_market_sgp.py --season 2026         # team-combo correlation vs Polymarket closing prices
 ```
 
 The simulation is anchored to the market's spread and total, adds parameter uncertainty and garbage-time
 substitution, and prices any combination of legs from one consistent joint simulation. The **SGP Lab** tab has the
-board, a bet slip with EV vs the book price, and auto tickets. Method, validation and limits: `docs/SGP.md`.
+board, an availability check with mark-OUT re-simulation, Polymarket no-vig prices for team legs, a bet slip with
+EV and a BET/PASS verdict against the book price, and auto tickets. Method, validation and limits: `docs/SGP.md`.
 
 ## Market data (Polymarket US — free, no key)
 
