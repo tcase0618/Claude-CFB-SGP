@@ -226,7 +226,7 @@ def _estimate(conn, season: int, before_week: int, injuries_week) -> Estimates:
     return Estimates(season, before_week, params, rates, slots, info, qbv, league_obs, int(len(p)))
 
 
-STRENGTH_K = float(__import__('os').environ.get('CFBQ_STRENGTH_K', '1.75'))   # dispersion of team efficiency around league average; tuned walk-forward (see scripts/tune_strength.py)
+STRENGTH_K = float(__import__('os').environ.get('CFBQ_STRENGTH_K', '1.25'))   # dispersion of team efficiency around league average; tuned walk-forward (see scripts/tune_strength.py)
 _LOGIT = ("comp_off", "comp_def", "sack_off", "sack_def", "int_off", "int_def", "rexp_off", "rexp_def", "fumble_off", "fumble_def")
 _ADD = ("rcore_off", "rcore_def", "yac_off", "yac_def")
 

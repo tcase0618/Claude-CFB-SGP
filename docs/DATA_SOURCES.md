@@ -4,7 +4,7 @@
 |---|---|---|---|
 | **ESPN public JSON** (site + core APIs) | **No** | schedules, scores, venues, neutral sites, weather, rankings, every play with down/distance/field position, athlete IDs by role on each play, box scores, season rosters (position, size, class), sportsbook lines (DraftKings via pickcenter) | **Primary real-data source** (`cli espn`) |
 | **Polymarket US** public gateway | **No** | live and closing prediction-market prices, spread and total ladders, settlements | Market benchmark (`cli markets`) — see `MARKETS.md` |
-| CollegeFootballData API | Free key | same core data plus recruiting ratings, talent composite, transfer portal | Optional (`cli ingest`); not required |
+| CollegeFootballData API | Free key (`CFBD_API_KEY` env var) | recruiting classes (stars, composite rating, rank), team talent composite, transfer portal | **Used for recruiting/talent/portal only** (`cli recruiting`, ~19 calls), merged into the ESPN DB |
 | sportsdataverse / cfbfastR release files | No | historical play-by-play parquet | Not reachable from this environment (GitHub release downloads blocked by the session's network scope); usable elsewhere |
 | 247Sports / On3 / Sports-Reference | — | recruiting, historical | **Not used**: their terms prohibit scraping |
 
@@ -30,8 +30,8 @@ CFBQ_DB=data/cfb.db python -m cfbquant.cli serve
   line of scrimmage (bounded −15…75), pass depth and location ("short/deep left/middle/right"), Shotgun/No-Huddle tags, and
   breakups. Only part of ESPN's feed uses this charting-style text (~55–60% of passes), so these metrics have partial
   coverage and say so.
-* **Not available from ESPN:** recruiting ratings and talent composite (the talent prior falls back to zero), transfer
-  portal, injuries (availability modelling then relies on who actually played), snap counts.
+* **Not available from ESPN:** recruiting ratings, talent composite and transfer portal (supplied by `cli recruiting`
+  from CFBD; CFBD's `athleteId` equals ESPN's athlete ID, and portal entries match on name plus origin/destination roster), injuries (availability modelling then relies on who actually played), snap counts.
 * **Terms:** ESPN publishes no developer terms for these feeds, and its site terms restrict automated and commercial reuse.
   This loader is for personal, non-commercial research: it rate-limits, caches each game once, and attributes ESPN.
   Use licensed data for anything commercial.
