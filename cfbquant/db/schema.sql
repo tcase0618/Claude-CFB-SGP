@@ -339,3 +339,10 @@ CREATE TABLE IF NOT EXISTS ingest_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT, source TEXT, endpoint TEXT, params TEXT,
     rows INTEGER, fetched_at TEXT, status TEXT, message TEXT
 );
+
+-- Sportsbook lines (e.g. ESPN pickcenter: DraftKings). Spread is from the HOME team's perspective (negative = home favoured).
+CREATE TABLE IF NOT EXISTS betting_lines (
+    game_id INTEGER NOT NULL, provider TEXT NOT NULL, spread_home REAL, over_under REAL,
+    home_moneyline REAL, away_moneyline REAL, fetched_at TEXT, source TEXT NOT NULL,
+    PRIMARY KEY (game_id, provider)
+);

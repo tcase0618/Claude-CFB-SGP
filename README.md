@@ -18,7 +18,20 @@ python -m cfbquant.cli backtest --test 2024,2025 --sims 400   # walk-forward val
 python -m cfbquant.cli serve                     # http://127.0.0.1:8000
 ```
 
-## Real data (CollegeFootballData)
+## Real data — no key needed (ESPN public feeds)
+
+```bash
+python -m cfbquant.cli --db data/cfb.db espn --seasons 2024,2025,2026   # ~15 min first run, cached afterwards
+export CFBQ_DB=data/cfb.db
+python -m cfbquant.cli analyze
+python -m cfbquant.cli markets live && python -m cfbquant.cli markets close --since 2026-08-20T00:00:00Z
+python -m cfbquant.cli backtest --test 2026
+python -m cfbquant.cli serve
+```
+
+See `docs/DATA_SOURCES.md` (what ESPN provides, text-parsed charting fields, terms caveat).
+
+## Real data (CollegeFootballData, optional — adds recruiting/talent/portal)
 
 ```bash
 export CFBD_API_KEY=...                          # https://collegefootballdata.com/key
@@ -47,7 +60,7 @@ closing-line benchmark when the model DB holds real CFBD games. See `docs/MARKET
 
 ```bash
 python -m cfbquant.cli forecast --home 1003 --away 1001 --season 2025 --week 12 --sims 10000
-python -m pytest -q                              # 37 tests
+python -m pytest -q                              # 43 tests
 python scripts/gen_metrics_doc.py                # regenerate docs/METRICS.md from the registry
 ```
 
@@ -55,5 +68,6 @@ python scripts/gen_metrics_doc.py                # regenerate docs/METRICS.md fr
 
 * `docs/ARCHITECTURE.md` — data model, pipeline, models, simulator, validation, API
 * `docs/METRICS.md` — every metric: formula, direction, classification (generated)
+* `docs/DATA_SOURCES.md` — ESPN (keyless), Polymarket US, CFBD; what each provides and its caveats
 * `docs/MARKETS.md` — Polymarket US integration: endpoints, verified contract semantics, data-quality findings
 * `IMPLEMENTATION_STATUS.md` — what is done, what is not, verification results, blockers

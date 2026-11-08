@@ -49,6 +49,8 @@ def _asof_features(conn, season, week):
         return {}
     p = p[p.is_off & p.clean].copy()
     p["w"] = np.where(p.season == season, 1.0, 0.35)
+    from ..analytics import team_metrics as _tm
+    _tm.FCS_TEAMS = {r[0] for r in conn.execute("SELECT team_id FROM team_seasons WHERE season=? AND division='fcs'", (season,))}
     feats = {}
     for col in ("epa", "success"):
         gl = p.assign(v=p[col].astype(float) * p.w).groupby(["game_id", "offense_id", "defense_id", "off_home", "neutral_site"]) \
@@ -151,11 +153,28 @@ def attach_market(conn, df: pd.DataFrame) -> pd.DataFrame:
 
     Never attached to synthetic data (fictional teams cannot map to real markets)."""
     from ..db import is_synthetic
-    for c in ("mkt_p_home", "mkt_margin_home", "mkt_total"):
+    for c in ("mkt_p_home", "mkt_margin_home", "mkt_total", "dk_p_home", "dk_margin_home", "dk_total"):
         df[c] = np.nan
+    if is_synthetic(conn):
+        return df
+    # Sportsbook lines (ESPN pickcenter, usually DraftKings): no-vig moneyline probability, -spread, total
+    bl = pd.read_sql_query("SELECT * FROM betting_lines", conn)
+    if not bl.empty:
+        bl = bl.sort_values("provider").groupby("game_id").head(1)
+
+        def implied(ml):
+            ml = pd.to_numeric(ml, errors="coerce")
+            return np.where(ml < 0, -ml / (-ml + 100), 100 / (ml + 100))
+        ph, pa = implied(bl.home_moneyline), implied(bl.away_moneyline)
+        novig = ph / (ph + pa)
+        from scipy.stats import norm as _n
+        from_spread = _n.cdf(-pd.to_numeric(bl.spread_home, errors="coerce") / 15.5)
+        bl["dk_p_home"] = np.where(np.isfinite(novig), novig, from_spread)
+        bl["dk_margin_home"] = -pd.to_numeric(bl.spread_home, errors="coerce")
+        bl["dk_total"] = pd.to_numeric(bl.over_under, errors="coerce")
+        df = df.drop(columns=["dk_p_home", "dk_margin_home", "dk_total"]).merge(
+            bl[["game_id", "dk_p_home", "dk_margin_home", "dk_total"]], on="game_id", how="left")
     try:
-        if is_synthetic(conn):
-            return df
         from ..ingest.polymarket import market_for_games, markets_db_path, open_markets_db
         if not markets_db_path().exists():
             return df
@@ -309,6 +328,26 @@ def evaluate(bt: dict) -> tuple[list[dict], dict]:
             price = np.where(side_home, mk.mkt_p_home[sel], 1 - mk.mkt_p_home[sel])
             won = np.where(side_home, ym[sel.values], 1 - ym[sel.values])
             add("sim_v1_cal", "edge>=5pp", "return_per_contract_at_mid", (won - price) / price)
+    if "dk_p_home" in t and t.dk_p_home.notna().sum() >= 20:
+        mk = t[t.dk_p_home.notna()]
+        ym = mk.home_win.values
+        add("sportsbook_line", "overall", "log_loss", log_loss(mk.dk_p_home.values, ym))
+        add("sportsbook_line", "overall", "brier", (mk.dk_p_home.values - ym) ** 2)
+        add("sportsbook_line", "overall", "accuracy", ((mk.dk_p_home.values > .5) == (ym == 1)).astype(float))
+        add("sim_v1_cal", "sportsbook_subset", "log_loss", log_loss(mk.sim_cal_p.values, ym))
+        add("elo", "sportsbook_subset", "log_loss", log_loss(mk.elo_p.values, ym))
+        add("sim_v1_cal", "overall", "log_loss_minus_sportsbook", log_loss(mk.sim_cal_p.values, ym) - log_loss(mk.dk_p_home.values, ym))
+        q = mk[mk.dk_margin_home.notna()]
+        if len(q) >= 20:
+            add("sportsbook_line", "overall", "margin_mae", np.abs(q.dk_margin_home - q.margin).values)
+            add("sim_v1", "sportsbook_subset", "margin_mae", np.abs(q.sim_margin - q.margin).values)
+            ats = np.sign(q.sim_margin - q.dk_margin_home) == np.sign(q.margin - q.dk_margin_home)
+            push = (q.margin == q.dk_margin_home)
+            add("sim_v1", "vs_spread", "ats_win_rate_ex_push", ats[~push].astype(float).values)
+        q = mk[mk.dk_total.notna()]
+        if len(q) >= 20:
+            add("sportsbook_line", "overall", "total_mae", np.abs(q.dk_total - q.total).values)
+            add("sim_v1", "sportsbook_subset", "total_mae", np.abs(q.sim_total - q.total).values)
     # calibration curve
     cal = _calibration_curve(t.sim_cal_p.values, y)
     cal_raw = _calibration_curve(t.sim_p.values, y)

@@ -2,6 +2,7 @@
 
   python -m cfbquant.cli synthetic              # build fictional demo DB
   python -m cfbquant.cli ingest --seasons 2023,2024 [--with-plays]   # real CFBD data (needs CFBD_API_KEY)
+  python -m cfbquant.cli espn --seasons 2024,2025,2026  # real data, NO KEY (ESPN public feeds) -> data/cfb.db
   python -m cfbquant.cli analyze --season 2025  # EP/EPA, team & player metrics, ratings, registry
   python -m cfbquant.cli backtest --test 2024,2025 --sims 400
   python -m cfbquant.cli forecast --home ID --away ID --season S --week W
@@ -55,6 +56,7 @@ def main(argv=None):
     sub = ap.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("synthetic"); s.add_argument("--seasons", default="2023,2024,2025"); s.add_argument("--seed", type=int, default=7)
     s = sub.add_parser("ingest"); s.add_argument("--seasons", required=True); s.add_argument("--with-plays", action="store_true")
+    s = sub.add_parser("espn"); s.add_argument("--seasons", required=True); s.add_argument("--workers", type=int, default=8)
     s = sub.add_parser("analyze"); s.add_argument("--seasons", default=None)
     s = sub.add_parser("backtest"); s.add_argument("--test", required=True); s.add_argument("--sims", type=int, default=None)
     s = sub.add_parser("forecast"); s.add_argument("--home", type=int, required=True); s.add_argument("--away", type=int, required=True)
@@ -90,6 +92,11 @@ def main(argv=None):
             os.environ.setdefault("CFBQ_DB", str(db))
             from .api.app import market_calibration
             print(json.dumps({k: v for k, v in market_calibration().items() if k != "calibration"}, indent=1, default=str))
+        return
+    if a.cmd == "espn":
+        from .ingest.espn import ESPNClient, ingest_espn
+        with open_db(db) as conn:
+            ingest_espn(conn, ESPNClient(), _seasons(a.seasons), workers=a.workers)
         return
     if a.cmd == "ingest":
         from .ingest.cfbd import CFBDClient, ingest_seasons

@@ -388,11 +388,19 @@ def registry_rows() -> list[dict]:
 
 
 # --------------------------------------------------------------------------- opponent adjustment
+FCS_TEAMS: set = set()   # set per computation from team_seasons.division
+
+
 def ridge_adjust(g: pd.DataFrame, lam: float = 4.0) -> tuple[dict, dict, float]:
-    """g columns: off, def, home(+1/-1/0), value, w. Returns (off_adj, def_adj, mu)."""
+    """g columns: off, def, home(+1/-1/0), value, w. Returns (off_adj, def_adj, mu).
+    FCS teams (FCS_TEAMS) get an unpenalised division effect so they shrink toward the FCS level."""
     g = g.dropna(subset=["value"])
     if g.empty:
         return {}, {}, np.nan
+    if FCS_TEAMS and (g["off"].isin(FCS_TEAMS).any() or g["def"].isin(FCS_TEAMS).any()):
+        from .team_params import ridge_prior
+        o, d, mu = ridge_prior(g.assign(w=g["w"] / g["w"].mean()), lam, fcs=FCS_TEAMS)
+        return {t: mu + v for t, v in o.items()}, {t: mu + v for t, v in d.items()}, mu
     teams = sorted(set(g["off"]).union(g["def"]))
     ix = {t: i for i, t in enumerate(teams)}
     n = len(teams)
@@ -429,7 +437,10 @@ def compute_team_metrics(conn, season: int, through_week: int | None = None) -> 
                                         (season,)).fetchone()[0] or 0)
     p = load_plays(conn, season, through_week)
     p = p[p.season == season]
-    teams = pd.read_sql_query("SELECT team_id, conference_id FROM team_seasons WHERE season=?", conn, params=(season,))
+    teams = pd.read_sql_query("SELECT team_id, conference_id, division FROM team_seasons WHERE season=?", conn, params=(season,))
+    global FCS_TEAMS
+    FCS_TEAMS = set(teams.team_id[teams.division == "fcs"])
+    teams = teams[teams.division != "fcs"][["team_id", "conference_id"]]   # profiles/percentiles: FBS only
     tids = teams.team_id.tolist()
     rows: list[dict] = []
     has_air = p.air_yards.notna().any() if not p.empty else False

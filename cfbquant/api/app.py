@@ -229,8 +229,10 @@ def player(player_id: int, season: int | None = None, project: bool = True):
 def _throw_chart(tc: pd.DataFrame) -> dict:
     if tc.empty:
         return {"available": False, "reason": "no attempts"}
-    if tc.air_yards.notna().mean() < 0.5:
-        return {"available": False, "reason": "Air yards not provided by source (requires charting data)"}
+    cov = float(tc.air_yards.notna().mean())
+    if tc.air_yards.notna().sum() < 20:
+        return {"available": False, "reason": f"Air yards parsed for only {tc.air_yards.notna().sum()} attempts (source text lacks catch/throw spots)"}
+    tc = tc[tc.air_yards.notna()]
     buckets = [("Behind LOS", -99, -1), ("0-9", 0, 9), ("10-19", 10, 19), ("20-29", 20, 29), ("30+", 30, 99)]
     rows = []
     for nm, lo, hi in buckets:
@@ -238,7 +240,7 @@ def _throw_chart(tc: pd.DataFrame) -> dict:
         rows.append({"depth": nm, "att": int(len(s)), "share": float(len(s) / len(tc)),
                      "comp_pct": float(s.completion.mean()) if len(s) else None, "epa": float(s.epa.mean()) if len(s) else None,
                      "td": int(s.touchdown.sum()), "int": int(s.interception.sum())})
-    return {"available": True, "rows": rows, "location_available": bool(tc.pass_location.notna().any()),
+    return {"available": True, "rows": rows, "coverage": cov, "location_available": bool(tc.pass_location.notna().any()),
             "location_note": None if tc.pass_location.notna().any() else "Pass location (L/M/R) not charted in source"}
 
 

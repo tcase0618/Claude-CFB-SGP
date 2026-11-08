@@ -34,23 +34,31 @@ SLOT_POS = {"QB1": ["QB"], "QB2": ["QB"], "RB1": ["RB"], "RB2": ["RB"], "WR1": [
             "LB3": ["LB"], "CB1": ["CB"], "CB2": ["CB"], "S1": ["S"], "S2": ["S"], "NB": ["CB", "S"]}
 
 
-def ridge_prior(g: pd.DataFrame, lam: float, b0_off: dict | None = None, b0_def: dict | None = None):
+def ridge_prior(g: pd.DataFrame, lam: float, b0_off: dict | None = None, b0_def: dict | None = None,
+                fcs: set | None = None):
+    """Ridge with prior means; optional unpenalised FCS offence/defence effects so sparsely observed FCS
+    teams shrink toward the FCS level rather than the FBS average."""
     teams = sorted(set(g["off"]).union(g["def"]))
     ix = {t: i for i, t in enumerate(teams)}
     n = len(teams)
     if len(g) == 0:
         return {}, {}, np.nan
-    X = np.zeros((len(g), 2 * n + 1))
+    use_fcs = bool(fcs) and any(t in fcs for t in teams)
+    k = 2 * n + 1 + (2 if use_fcs else 0)
+    X = np.zeros((len(g), k))
     r = np.arange(len(g))
     X[r, g["off"].map(ix).values] = 1
     X[r, n + g["def"].map(ix).values] = 1
-    X[:, -1] = g["home"].values
+    X[:, 2 * n] = g["home"].values
+    if use_fcs:
+        X[:, 2 * n + 1] = g["off"].isin(fcs).values
+        X[:, 2 * n + 2] = g["def"].isin(fcs).values
     w = g["w"].values.astype(float)
     mu = np.average(g["value"].values, weights=w)
     y = g["value"].values - mu
-    pen = np.full(2 * n + 1, lam)
-    pen[-1] = lam * 0.01
-    b0 = np.zeros(2 * n + 1)
+    pen = np.full(k, lam)
+    pen[2 * n:] = lam * 0.01
+    b0 = np.zeros(k)
     for t, v in (b0_off or {}).items():
         if t in ix:
             b0[ix[t]] = v
@@ -59,7 +67,10 @@ def ridge_prior(g: pd.DataFrame, lam: float, b0_off: dict | None = None, b0_def:
             b0[n + ix[t]] = v
     A = X.T @ (X * w[:, None]) + np.diag(pen)
     beta = np.linalg.solve(A, X.T @ (y * w) + pen * b0)
-    return {t: beta[ix[t]] for t in teams}, {t: beta[n + ix[t]] for t in teams}, mu
+    fo = beta[2 * n + 1] if use_fcs else 0.0
+    fd = beta[2 * n + 2] if use_fcs else 0.0
+    return ({t: beta[ix[t]] + (fo if use_fcs and t in fcs else 0.0) for t in teams},
+            {t: beta[n + ix[t]] + (fd if use_fcs and t in fcs else 0.0) for t in teams}, mu)
 
 
 @dataclass
@@ -140,8 +151,9 @@ def _estimate(conn, season: int, before_week: int, injuries_week) -> Estimates:
     season, before_week = int(season), int(before_week)
     injuries_week = None if injuries_week is None else int(injuries_week)
     raw = load_plays(conn, season, before_week=before_week, include_prior_seasons=1)
-    teams = pd.read_sql_query("SELECT team_id, talent_composite, returning_production FROM team_seasons WHERE season=?",
+    teams = pd.read_sql_query("SELECT team_id, talent_composite, returning_production, division FROM team_seasons WHERE season=?",
                               conn, params=(season,)).set_index("team_id")
+    fcs = set(teams.index[teams.division == "fcs"])
     tz = (teams.talent_composite - teams.talent_composite.mean()) / (teams.talent_composite.std() or 1)
     tz = tz.fillna(0)
     rp = teams.returning_production.fillna(0.6)
@@ -165,11 +177,11 @@ def _estimate(conn, season: int, before_week: int, injuries_week) -> Estimates:
             gl["w"] = gl.n * (gl.w / gl.n)
             gl = gl.rename(columns={"offense_id": "off", "defense_id": "def"})
             lam = LAM[st] * (np.average(gl.n) if len(gl) else 1)
-            o1, d1, mu = ridge_prior(gl, lam)
+            o1, d1, mu = ridge_prior(gl, lam, fcs=fcs)
             # empirical-Bayes talent prior (slope from first pass)
             so = _slope(o1, tz)
             sd = _slope(d1, tz) if st not in ("scramble", "passrate", "adot") else 0.0
-            o2, d2, mu = ridge_prior(gl, lam, {t: so * tz.get(t, 0) for t in o1}, {t: sd * tz.get(t, 0) for t in d1})
+            o2, d2, mu = ridge_prior(gl, lam, {t: so * tz.get(t, 0) for t in o1}, {t: sd * tz.get(t, 0) for t in d1}, fcs=fcs)
             league_obs[st] = mu
             rates[f"{st}_off"] = pd.Series({t: mu + v for t, v in o2.items()})
             rates[f"{st}_def"] = pd.Series({t: mu + v for t, v in d2.items()})
@@ -205,11 +217,28 @@ def _estimate(conn, season: int, before_week: int, injuries_week) -> Estimates:
     for t, tp_ in list(params.items()):
         if t in usage:
             params[t] = tp_.with_(**usage[t])
+    if STRENGTH_K != 1.0:
+        params = {t: amplify(tp_, STRENGTH_K) for t, tp_ in params.items()}
     level = calibrate_level(conn, params, season, before_week)
     if level["shift"] != 0.0:
         params = {t: shift_level(tp_, level["shift"]) for t, tp_ in params.items()}
     league_obs["level"] = level
     return Estimates(season, before_week, params, rates, slots, info, qbv, league_obs, int(len(p)))
+
+
+STRENGTH_K = float(__import__('os').environ.get('CFBQ_STRENGTH_K', '1.75'))   # dispersion of team efficiency around league average; tuned walk-forward (see scripts/tune_strength.py)
+_LOGIT = ("comp_off", "comp_def", "sack_off", "sack_def", "int_off", "int_def", "rexp_off", "rexp_def", "fumble_off", "fumble_def")
+_ADD = ("rcore_off", "rcore_def", "yac_off", "yac_def")
+
+
+def amplify(tp: TeamParams, k: float) -> TeamParams:
+    """Scale each efficiency parameter's deviation from the engine baseline by k (logit scale for probabilities)."""
+    kw = {}
+    for f in _LOGIT:
+        kw[f] = float(sigmoid(logit(getattr(BASE, f)) + k * (logit(getattr(tp, f)) - logit(getattr(BASE, f)))))
+    for f in _ADD:
+        kw[f] = float(getattr(BASE, f) + k * (getattr(tp, f) - getattr(BASE, f)))
+    return tp.with_(**kw)
 
 
 def shift_level(tp: TeamParams, l: float) -> TeamParams:

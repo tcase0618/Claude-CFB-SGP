@@ -13,12 +13,14 @@ import numpy as np
 import pandas as pd
 
 K, HFA, CARRY, TALENT = 28.0, 55.0, 0.6, 45.0
+FCS_START = 1150.0   # FCS teams enter far below the FBS mean (they are only observed vs FBS opponents)
 
 
 def run_elo(conn) -> pd.DataFrame:
     g = pd.read_sql_query("""SELECT game_id, season, week, start_date, home_id, away_id, home_points, away_points,
                              neutral_site, completed FROM games ORDER BY start_date, game_id""", conn)
-    ts = pd.read_sql_query("SELECT team_id, season, talent_composite FROM team_seasons", conn)
+    ts = pd.read_sql_query("SELECT team_id, season, talent_composite, division FROM team_seasons", conn)
+    fcs = {(r.team_id, r.season) for r in ts.itertuples() if r.division == "fcs"}
     ts["tz"] = ts.groupby("season").talent_composite.transform(lambda s: (s - s.mean()) / (s.std() or 1)).fillna(0)
     tz = {(r.team_id, r.season): r.tz for r in ts.itertuples()}
     R: dict[int, float] = {}
@@ -27,8 +29,9 @@ def run_elo(conn) -> pd.DataFrame:
     for r in g.itertuples():
         for t in (r.home_id, r.away_id):
             if season_seen.get(t) != r.season:
-                prev = R.get(t, 1500.0)
-                R[t] = 1500 + CARRY * (prev - 1500) + TALENT * tz.get((t, r.season), 0.0)
+                base = FCS_START if (t, r.season) in fcs else 1500.0
+                prev = R.get(t, base)
+                R[t] = base + CARRY * (prev - base) + TALENT * tz.get((t, r.season), 0.0)
                 season_seen[t] = r.season
         h = 0.0 if r.neutral_site else HFA
         diff = R[r.home_id] - R[r.away_id] + h

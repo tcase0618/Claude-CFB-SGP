@@ -81,8 +81,12 @@ async function route() {
 
 /* ------------------------------------------------------------------ shared blocks */
 function featuredGame() {
-  return api(`/api/games?season=${S.season}`).then(g => {
-    const wk = Math.max(...g.games.map(x => x.week));
+  return api(`/api/games?season=${S.season}`).then(gg => {
+    let g = gg;
+    const real = g.games.filter(x => x.home_id > 0 && x.away_id > 0 && S.teams.some(t => t.team_id === x.home_id) && S.teams.some(t => t.team_id === x.away_id));
+    const upcoming = real.filter(x => !x.completed);
+    const wk = upcoming.length ? Math.min(...upcoming.map(x => x.week)) : Math.max(...real.map(x => x.week));
+    g = {games: real};
     const gr = Object.fromEntries(S.teams.map(t => [t.team_id, t.net_epa ?? 0]));
     const cand = g.games.filter(x => x.week === wk && (!S.conf || [teamConf(x.home_id), teamConf(x.away_id)].includes(S.conf)));
     cand.sort((a, b) => (gr[b.home_id] + gr[b.away_id] - Math.abs(gr[b.home_id] - gr[b.away_id])) - (gr[a.home_id] + gr[a.away_id] - Math.abs(gr[a.home_id] - gr[a.away_id])));
@@ -208,7 +212,7 @@ function throwChart(tc, compact = true) {
   if (!tc.available) return `<h3>Passing chart</h3><div class="sub">${E(tc.reason)}</div>`;
   const rows = [...tc.rows].reverse();
   const cells = rows.map(r => `<tr><td>${r.depth}</td><td class="n" style="background:${C.heatColor(r.comp_pct, .3, .85)}">${r.att ? pc(r.comp_pct, 0) : '—'}</td><td class="n">${pc(r.share, 0)}</td><td class="n ${cls(r.epa)}">${fs(r.epa, 2)}</td>${compact ? '' : `<td class="n">${r.td}/${r.int}</td>`}</tr>`).join('');
-  return `<h3>${S.season} passing chart (air yards)</h3><table class="heat"><tr><th>Depth</th><th class="n">Cmp%</th><th class="n">Shr</th><th class="n">EPA</th>${compact ? '' : '<th class="n">TD/INT</th>'}</tr>${cells}</table><div class="note">${E(tc.location_note || '')}</div>`;
+  return `<h3>${S.season} passing chart (air yards)</h3><table class="heat"><tr><th>Depth</th><th class="n">Cmp%</th><th class="n">Shr</th><th class="n">EPA</th>${compact ? '' : '<th class="n">TD/INT</th>'}</tr>${cells}</table><div class="note">Air yards parsed from play text for ${pc(tc.coverage, 0)} of attempts ${tag('estimated')} ${E(tc.location_note || '')}</div>`;
 }
 function teamCard(tm) {
   const t = tm.team, all = tm.categories.flatMap(c => c.metrics);

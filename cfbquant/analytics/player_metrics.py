@@ -403,6 +403,7 @@ def compute_player_metrics(conn, season: int, through_week: int | None = None) -
     box_cols = ["pass_att", "pass_cmp", "pass_yds", "pass_td", "pass_int", "sacks_taken", "rush_att", "rush_yds", "rush_td",
                 "targets", "receptions", "rec_yds", "rec_td", "tackles", "tfl", "def_sacks", "def_int", "pbu",
                 "forced_fumbles", "fga", "fgm", "xpa", "xpm", "punts", "punt_yds"]
+    pg[box_cols] = pg[box_cols].apply(pd.to_numeric, errors="coerce").fillna(0.0).astype(float)
     tot = pg.groupby("player_id")[box_cols].sum()
     for c in box_cols:
         W[c] = tot[c]
@@ -543,6 +544,8 @@ def compute_player_metrics(conn, season: int, through_week: int | None = None) -
     W = W.copy()
     _position_metrics(W, cur, opp, off, p, pg, fam_adj, ros)
     W = W.copy()
+    num = W.select_dtypes(include=[np.number]).columns
+    W[num] = W[num].replace([np.inf, -np.inf], np.nan)
     # archetypes use within-season percentiles so rules transfer across data environments
     for pos, cols in {"QB": ["qb_designed_run", "qb_scramble", "qb_rush_epa", "qb_adot", "qb_deep_rate", "qb_comp",
                              "qb_int_rate", "qb_epa_db"], "RB": ["target_share", "rb_expl"],

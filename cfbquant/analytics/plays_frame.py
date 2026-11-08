@@ -24,6 +24,16 @@ def load_plays(conn, season: int, through_week: int | None = None, *, before_wee
 def derive(p: pd.DataFrame) -> pd.DataFrame:
     if p.empty:
         return p
+    num = ["down", "distance", "yards_to_goal", "yards_gained", "air_yards", "completion", "interception", "sack",
+           "fumble_lost", "touchdown", "first_down", "scramble", "points", "fg_distance", "fg_made", "ep_before",
+           "ep_after", "epa", "success", "garbage_time", "offense_score", "defense_score", "clock_seconds", "period",
+           "temperature_f", "wind_mph", "neutral_site"]
+    for c in num:
+        if c in p:
+            p[c] = pd.to_numeric(p[c], errors="coerce")
+    for c in ("completion", "interception", "sack", "fumble_lost", "touchdown", "first_down", "scramble", "garbage_time", "neutral_site"):
+        if c in p:
+            p[c] = p[c].fillna(0)
     t = p.play_type
     p["is_off"] = t.isin(OFF_TYPES)
     p["dropback"] = t.isin(("pass", "sack", "scramble"))
