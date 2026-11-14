@@ -15,7 +15,10 @@ HC = lambda p: 0.70 if p >= 0.75 else p
 
 def card(gid):
     with open_db(os.environ.get("CFBQ_DB", "data/cfb.db")) as conn:
-        start = conn.execute("select start_date from games where game_id=?", (gid,)).fetchone()[0]
+        row = conn.execute("select start_date from games where game_id=?", (gid,)).fetchone()
+        if row is None:
+            return gid, None, "not in database (non-FBS opponent or not ingested)"
+        start = row[0]
         if datetime.fromisoformat(start.replace("Z", "+00:00")) <= datetime.now(timezone.utc):
             return gid, None, "already started"
         try:
@@ -36,8 +39,11 @@ def pick(c):
     return out
 
 def main():
-    slot, ids = sys.argv[1], [int(x) for x in sys.argv[2:] if x.isdigit()]
-    workers = int(sys.argv[sys.argv.index("--workers") + 1]) if "--workers" in sys.argv else 3
+    args = sys.argv[2:]
+    workers = 3
+    if "--workers" in args:
+        i = args.index("--workers"); workers = int(args[i + 1]); del args[i:i + 2]
+    slot, ids = sys.argv[1], [int(x) for x in args if x.isdigit()]
     now = datetime.now(timezone.utc).isoformat(); rows = []
     with ProcessPoolExecutor(workers) as ex:
         for gid, c, why in ex.map(card, ids):
