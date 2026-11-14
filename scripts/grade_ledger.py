@@ -10,6 +10,8 @@ STAT = {"pass yds": ("passing", "passingYards"), "pass td": ("passing", "passing
 def box(eid):
     j = json.load(urllib.request.urlopen(f"https://site.api.espn.com/apis/site/v2/sports/football/college-football/summary?event={eid}", timeout=30))
     c = j["header"]["competitions"][0]; final = c["status"]["type"]["completed"]
+    if not final:
+        return {}, None, {}, False
     teams = {t["team"]["location"].lower(): int(t["score"]) for t in c["competitors"]}
     home = [t["team"]["location"].lower() for t in c["competitors"] if t["homeAway"] == "home"][0]
     pl = {}
@@ -46,7 +48,9 @@ def main(led):
     cache, out = {}, []
     for i, r in enumerate(rows):
         if r.get("type") != "ticket" or i in done or not r.get("legs"): continue
-        gid = r["game_id"]; cache.setdefault(gid, box(gid)); teams, home, pl, final = cache[gid]
+        gid = r["game_id"]
+        if gid not in cache: cache[gid] = box(gid)
+        teams, home, pl, final = cache[gid]
         if not final: continue
         gs = []
         for l in r["legs"]:
