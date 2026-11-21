@@ -13,13 +13,26 @@ from cfbquant.models import sgp_service as svc
 
 HC = lambda p: 0.70 if p >= 0.75 else p
 
+def _started(gid, start):
+    """True if the game has kicked off. The DB start_date can be a TBD placeholder
+    (e.g. T05:00Z = midnight ET), so ESPN's live status is authoritative when reachable."""
+    try:
+        import json, urllib.request
+        url = f"https://site.api.espn.com/apis/site/v2/sports/football/college-football/summary?event={gid}"
+        comp = json.load(urllib.request.urlopen(url, timeout=20))["header"]["competitions"][0]
+        if comp["status"]["type"]["state"] != "pre":
+            return True
+        return datetime.fromisoformat(comp["date"].replace("Z", "+00:00")) <= datetime.now(timezone.utc)
+    except Exception:
+        return datetime.fromisoformat(start.replace("Z", "+00:00")) <= datetime.now(timezone.utc)
+
 def card(gid):
     with open_db(os.environ.get("CFBQ_DB", "data/cfb.db")) as conn:
         row = conn.execute("select start_date from games where game_id=?", (gid,)).fetchone()
         if row is None:
             return gid, None, "not in database (non-FBS opponent or not ingested)"
         start = row[0]
-        if datetime.fromisoformat(start.replace("Z", "+00:00")) <= datetime.now(timezone.utc):
+        if _started(gid, start):
             return gid, None, "already started"
         try:
             c = svc.game_card(conn, gid)
